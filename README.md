@@ -34,6 +34,28 @@ Notifications persistence, invariants, read models, batch jobs, Quartz schedules
 
 Writes data; does not decide business outcomes.
 
+## Implemented first slice
+
+- Spring Boot 3.4.0, Java 22, port **8099**.
+- PostgreSQL database `eia_notifications`; `schema.sql` creates `notification` and `notification_template`.
+- Internal API:
+  - `GET /internal/v1/notifications?tenantId={uuid}`
+  - `GET /internal/v1/notifications/{id}?tenantId={uuid}`
+  - `POST /internal/v1/notifications`
+  - `POST /internal/v1/notifications/{id}/send?tenantId={uuid}`
+- Enforced invariants: SPEC 11.8.5 channel/status sets, `sent_at >= scheduled_at`, and issuance only with an approved `ACTIVE` template (NTF-01, NTF-14). Errors are RFC 9457 `application/problem+json` with stable `EIA-NTF-*` codes.
+- The demo tenant `11111111-1111-7111-8111-111111111111` is seeded with approved `CLAIM_NOTICE_STANDARD` v1 and unapproved `CLAIM_NOTICE_DRAFT` v1 templates.
+
+## Local verification
+
+```powershell
+$env:JAVA_HOME='C:\Program Files\Eclipse Adoptium\jdk-22.0.2.9-hotspot'
+.\gradlew build
+java -jar build/libs/eia-notifications-expert-0.1.0-SNAPSHOT.jar
+```
+
+The service expects PostgreSQL on `localhost:5432`, database `eia_notifications`, user `postgres`, password `postgres`.
+
 ## License
 
 Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

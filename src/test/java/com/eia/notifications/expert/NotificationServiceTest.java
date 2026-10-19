@@ -1,5 +1,6 @@
 package com.eia.notifications.expert;
 
+import com.eia.platform.libs.outbox.OutboxRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -31,6 +32,9 @@ class NotificationServiceTest {
 
     @Mock
     private NotificationTemplateRepository templates;
+
+    @Mock
+    private OutboxRepository outbox;
 
     @InjectMocks
     private NotificationService service;

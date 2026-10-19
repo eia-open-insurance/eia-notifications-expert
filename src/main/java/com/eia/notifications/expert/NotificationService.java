@@ -1,6 +1,9 @@
 package com.eia.notifications.expert;
 
+import com.eia.platform.libs.outbox.OutboxEvent;
+import com.eia.platform.libs.outbox.OutboxRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
@@ -10,17 +13,24 @@ import java.util.UUID;
  * Expert-side enforcement of the notification invariants. The public domain
  * service also validates these rules, but the expert is the last line of
  * defence before persistence and must not trust its caller.
+ *
+ * <p>Every aggregate write also appends its domain event to the transactional
+ * outbox in the same transaction (SPEC 7.5.1), so a rollback leaves neither the
+ * notification mutation nor the event behind.</p>
  */
 @Service
 public class NotificationService {
 
     private final NotificationRepository notifications;
     private final NotificationTemplateRepository templates;
+    private final OutboxRepository outbox;
 
     public NotificationService(NotificationRepository notifications,
-                               NotificationTemplateRepository templates) {
+                               NotificationTemplateRepository templates,
+                               OutboxRepository outbox) {
         this.notifications = notifications;
         this.templates = templates;
+        this.outbox = outbox;
     }
 
     public List<Notification> list(UUID tenantId) {
@@ -33,6 +43,7 @@ public class NotificationService {
                         "Notification '" + id + "' was not found for tenant '" + tenantId + "'."));
     }
 
+    @Transactional
     public Notification create(CreateNotificationRequest request) {
         NotificationType.from(request.notificationType());
         NotificationChannel.from(request.channel());
@@ -43,13 +54,16 @@ public class NotificationService {
             requireApprovedTemplate(request.tenantId(), templateCode, templateVersion, request.channel());
         }
 
-        return notifications.create(request, templateCode, templateVersion);
+        Notification notification = notifications.create(request, templateCode, templateVersion);
+        outbox.insert(OutboxEvent.fromEnvelope(NotificationEvents.created(notification, Instant.now())));
+        return notification;
     }
 
     /**
      * Issues a drafted notification. NTF-01/NTF-14 require an approved template,
      * and sent_at may never precede scheduled_at.
      */
+    @Transactional
     public Notification send(UUID tenantId, UUID id) {
         Notification notification = get(tenantId, id);
 
@@ -73,9 +87,11 @@ public class NotificationService {
         requireApprovedTemplate(tenantId, notification.templateCode(), notification.templateVersion(),
                 notification.channel());
 
-        return notifications.markSent(notification, sentAt)
+        Notification sent = notifications.markSent(notification, sentAt)
                 .orElseThrow(() -> new ApiException(ErrorCode.STALE_VERSION,
                         "Notification '" + id + "' changed concurrently and was not sent; reload and retry."));
+        outbox.insert(OutboxEvent.fromEnvelope(NotificationEvents.sent(notification, sent, sentAt)));
+        return sent;
     }
 
     private void requireApprovedTemplate(UUID tenantId, String templateCode, Integer templateVersion,

@@ -28,9 +28,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class NotificationControllerTest {
 
     private static final UUID TENANT = UUID.fromString("11111111-1111-7111-8111-111111111111");
+    private static final UUID OTHER_TENANT = UUID.fromString("22222222-2222-7222-8222-222222222222");
     private static final UUID NOTIFICATION_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000001");
     private static final UUID PARTY_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000002");
     private static final UUID SOURCE_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000003");
+    private static final UUID ATTEMPT_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000004");
 
     @Autowired
     private MockMvc mvc;
@@ -356,6 +358,44 @@ class NotificationControllerTest {
     }
 
     @Test
+    void attemptsReturnProviderAndDeliveryEvidence() throws Exception {
+        NotificationDeliveryAttempt attempt = new NotificationDeliveryAttempt(
+                ATTEMPT_ID, TENANT, NOTIFICATION_ID, 1, "EMAIL", "SIMULATOR",
+                "SIM-" + NOTIFICATION_ID, "DELIVERED", null, null,
+                Instant.parse("2026-10-22T12:00:00Z"));
+        when(service.attempts(TENANT, NOTIFICATION_ID)).thenReturn(List.of(attempt));
+
+        mvc.perform(get("/internal/v1/notifications/{id}/attempts", NOTIFICATION_ID)
+                        .param("tenantId", TENANT.toString()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$[0].id").value(ATTEMPT_ID.toString()))
+                .andExpect(jsonPath("$[0].notificationId").value(NOTIFICATION_ID.toString()))
+                .andExpect(jsonPath("$[0].attemptNumber").value(1))
+                .andExpect(jsonPath("$[0].channel").value("EMAIL"))
+                .andExpect(jsonPath("$[0].provider").value("SIMULATOR"))
+                .andExpect(jsonPath("$[0].providerReference").value("SIM-" + NOTIFICATION_ID))
+                .andExpect(jsonPath("$[0].status").value("DELIVERED"))
+                .andExpect(jsonPath("$[0].errorCode").value(nullValue()));
+
+        verify(service).attempts(TENANT, NOTIFICATION_ID);
+    }
+
+    @Test
+    void attemptsForAnotherTenantReturnStructured404() throws Exception {
+        when(service.attempts(OTHER_TENANT, NOTIFICATION_ID))
+                .thenThrow(new ApiException(ErrorCode.NOT_FOUND,
+                        "Notification '" + NOTIFICATION_ID + "' was not found."));
+
+        mvc.perform(get("/internal/v1/notifications/{id}/attempts", NOTIFICATION_ID)
+                        .param("tenantId", OTHER_TENANT.toString()))
+                .andExpect(status().isNotFound())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("EIA-NTF-9001"))
+                .andExpect(jsonPath("$.category").value("NOT_FOUND"));
+    }
+
+    @Test
     void missingTenantParameterReturnsStructured400() throws Exception {
         mvc.perform(get("/internal/v1/notifications"))
                 .andExpect(status().isBadRequest())
@@ -372,7 +412,7 @@ class NotificationControllerTest {
         return new Notification(NOTIFICATION_ID, TENANT, "NTF-2026-000000001", "NEW_CLAIM_NOTICE",
                 "EMAIL", status, PARTY_ID, "Claim requires attention",
                 "Claim CLM-2026-000000001 requires attention.", templateCode, templateVersion,
-                null, null, 0, Instant.now(), Instant.now(),
+                null, null, null, null, 0, Instant.now(), Instant.now(),
                 sourceType, sourceId, sourceReference);
     }
 }

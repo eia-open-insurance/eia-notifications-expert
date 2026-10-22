@@ -23,13 +23,19 @@ public class NotificationService {
 
     private final NotificationRepository notifications;
     private final NotificationTemplateRepository templates;
+    private final NotificationDeliveryAttemptRepository deliveryAttempts;
+    private final DeliveryProvider deliveryProvider;
     private final OutboxRepository outbox;
 
     public NotificationService(NotificationRepository notifications,
                                NotificationTemplateRepository templates,
+                               NotificationDeliveryAttemptRepository deliveryAttempts,
+                               DeliveryProvider deliveryProvider,
                                OutboxRepository outbox) {
         this.notifications = notifications;
         this.templates = templates;
+        this.deliveryAttempts = deliveryAttempts;
+        this.deliveryProvider = deliveryProvider;
         this.outbox = outbox;
     }
 
@@ -55,6 +61,16 @@ public class NotificationService {
         return notifications.findById(tenantId, id)
                 .orElseThrow(() -> new ApiException(ErrorCode.NOT_FOUND,
                         "Notification '" + id + "' was not found for tenant '" + tenantId + "'."));
+    }
+
+    /**
+     * Tenant-scoped delivery history. The notification lookup is the tenant wall:
+     * a notification owned by another tenant is a 404 even though its attempt
+     * rows carry the same notification id.
+     */
+    public List<NotificationDeliveryAttempt> attempts(UUID tenantId, UUID id) {
+        get(tenantId, id);
+        return deliveryAttempts.findAll(tenantId, id);
     }
 
     @Transactional
@@ -134,7 +150,20 @@ public class NotificationService {
         requireApprovedTemplate(tenantId, notification.templateCode(), notification.templateVersion(),
                 notification.channel());
 
-        Notification sent = notifications.markSent(notification, sentAt)
+        int attemptNumber = 1;
+        String provider = deliveryProvider.provider();
+        DeliveryResult delivery = deliveryProvider.deliver(new DeliveryRequest(
+                tenantId, id, attemptNumber, notification.channel(), notification.recipientPartyId(),
+                notification.subject(), notification.body()));
+        if (!delivery.isDelivered()) {
+            throw new ApiException(ErrorCode.DELIVERY_FAILED,
+                    "Delivery provider '" + provider + "' failed for notification '"
+                            + id + "': " + delivery.errorCode() + " " + delivery.errorMessage());
+        }
+
+        deliveryAttempts.insert(NotificationDeliveryAttempt.from(tenantId, id, attemptNumber,
+                notification.channel(), provider, delivery, sentAt));
+        Notification sent = notifications.markSent(notification, sentAt, sentAt, delivery.providerReference())
                 .orElseThrow(() -> new ApiException(ErrorCode.STALE_VERSION,
                         "Notification '" + id + "' changed concurrently and was not sent; reload and retry."));
         outbox.insert(OutboxEvent.fromEnvelope(NotificationEvents.sent(notification, sent, sentAt)));

@@ -23,6 +23,8 @@ management:
       exposure:
         include: health,info
 eia:
+  notifications:
+    provider: ${EIA_NOTIFICATIONS_PROVIDER:simulator}
   outbox:
     enabled: ${EIA_OUTBOX_ENABLED:false}
     endpoint: ${EIA_OUTBOX_ENDPOINT:}

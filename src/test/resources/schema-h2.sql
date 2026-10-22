@@ -60,10 +60,36 @@ ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_type VARCHAR(32);
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_id UUID;
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_reference VARCHAR(64);
 
+-- Delivery evidence, mirroring the PostgreSQL migration.
+ALTER TABLE notification ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMP WITH TIME ZONE;
+ALTER TABLE notification ADD COLUMN IF NOT EXISTS provider_reference VARCHAR(64);
+
 -- Serves source-filtered notification lists, including their newest-first order,
 -- mirroring the idempotent PostgreSQL index migration.
 CREATE INDEX IF NOT EXISTS ix_notification_tenant_source_created
     ON notification (tenant_id, source_type, source_id, created_at DESC);
+
+-- H2-compatible copy of the PostgreSQL delivery-attempt table.
+CREATE TABLE IF NOT EXISTS notification_delivery_attempt (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    notification_id UUID NOT NULL,
+    attempt_number INTEGER NOT NULL,
+    channel VARCHAR(32) NOT NULL,
+    provider VARCHAR(32) NOT NULL,
+    provider_reference VARCHAR(64),
+    status VARCHAR(32) NOT NULL,
+    error_code VARCHAR(64),
+    error_message VARCHAR(500),
+    attempted_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    CONSTRAINT fk_notification_delivery_attempt_notification
+        FOREIGN KEY (notification_id) REFERENCES notification (id),
+    CONSTRAINT uq_notification_delivery_attempt UNIQUE (notification_id, attempt_number),
+    CONSTRAINT ck_notification_delivery_attempt_status CHECK (status IN ('DELIVERED', 'FAILED'))
+);
+
+CREATE INDEX IF NOT EXISTS ix_notification_delivery_attempt_tenant_notification
+    ON notification_delivery_attempt (tenant_id, notification_id, attempt_number);
 
 -- H2-compatible copy of the PostgreSQL outbox table. JSON payloads are TEXT
 -- here; production DDL uses jsonb.

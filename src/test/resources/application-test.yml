@@ -12,5 +12,7 @@ spring:
     auto-startup: false
     job-store-type: memory
 eia:
+  notifications:
+    provider: simulator
   outbox:
     enabled: false

@@ -19,3 +19,8 @@ The format is based on Keep a Changelog and the project uses Semantic Versioning
 - Notification template management: tenant-scoped list, DRAFT creation, approval, and retirement at
   `/api/v1/notifications/templates`, plus `notifications.template.created`, `.approved`, and `.retired`
   outbox events.
+- Delivery provider abstraction with a default local `SimulatedDeliveryProvider` (`SIMULATOR`) selected
+  by `eia.notifications.provider=simulator`; sends record attempt 1 in `notification_delivery_attempt`,
+  store `delivered_at` and `provider_reference` on the notification, and include both fields in the
+  `notifications.notification.sent` payload.
+- Tenant-scoped delivery history: `GET /internal/v1/notifications/{id}/attempts`.

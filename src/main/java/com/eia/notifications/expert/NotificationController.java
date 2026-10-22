@@ -40,6 +40,11 @@ public class NotificationController {
         return service.get(tenantId, id);
     }
 
+    @GetMapping("/{id}/attempts")
+    public List<NotificationDeliveryAttempt> attempts(@RequestParam UUID tenantId, @PathVariable UUID id) {
+        return service.attempts(tenantId, id);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public Notification create(@Valid @RequestBody CreateNotificationRequest request) {

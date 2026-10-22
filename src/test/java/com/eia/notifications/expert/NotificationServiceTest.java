@@ -39,6 +39,12 @@ class NotificationServiceTest {
     private NotificationTemplateRepository templates;
 
     @Mock
+    private NotificationDeliveryAttemptRepository deliveryAttempts;
+
+    @Mock
+    private DeliveryProvider deliveryProvider;
+
+    @Mock
     private OutboxRepository outbox;
 
     @InjectMocks
@@ -147,7 +153,7 @@ class NotificationServiceTest {
                 .isInstanceOfSatisfying(ApiException.class,
                         ex -> assertThat(ex.errorCode()).isEqualTo(ErrorCode.SEND_BEFORE_SCHEDULED));
 
-        verify(notifications, never()).markSent(any(), any());
+        verify(notifications, never()).markSent(any(), any(), any(), any());
     }
 
     @Test
@@ -176,15 +182,76 @@ class NotificationServiceTest {
     void sendMarksNotificationSentWhenInvariantsHold() {
         Notification draft = notification("CREATED", "CLAIM_NOTICE_STANDARD", 1,
                 Instant.now().minusSeconds(60), null, 0);
+        String providerReference = "SIM-" + NOTIFICATION_ID;
+        Instant deliveredAt = Instant.now();
         Notification sent = notification("SENT", "CLAIM_NOTICE_STANDARD", 1,
-                draft.scheduledAt(), Instant.now(), 1);
+                draft.scheduledAt(), deliveredAt, 1, providerReference, deliveredAt);
         when(notifications.findById(TENANT, NOTIFICATION_ID)).thenReturn(Optional.of(draft));
         when(templates.find(TENANT, "CLAIM_NOTICE_STANDARD", 1, "EMAIL"))
                 .thenReturn(Optional.of(template("CLAIM_NOTICE_STANDARD", 1, "ACTIVE", UUID.randomUUID())));
-        when(notifications.markSent(eq(draft), any())).thenReturn(Optional.of(sent));
+        when(deliveryProvider.provider()).thenReturn(SimulatedDeliveryProvider.PROVIDER);
+        when(deliveryProvider.deliver(any()))
+                .thenReturn(DeliveryResult.delivered(providerReference));
+        when(notifications.markSent(eq(draft), any(), any(), eq(providerReference)))
+                .thenReturn(Optional.of(sent));
 
         assertThat(service.send(TENANT, NOTIFICATION_ID)).isEqualTo(sent);
-        verify(notifications).markSent(eq(draft), any());
+
+        verify(deliveryProvider).deliver(any());
+        verify(notifications).markSent(eq(draft), any(), any(), eq(providerReference));
+
+        ArgumentCaptor<NotificationDeliveryAttempt> attempt =
+                ArgumentCaptor.forClass(NotificationDeliveryAttempt.class);
+        verify(deliveryAttempts).insert(attempt.capture());
+        assertThat(attempt.getValue().tenantId()).isEqualTo(TENANT);
+        assertThat(attempt.getValue().notificationId()).isEqualTo(NOTIFICATION_ID);
+        assertThat(attempt.getValue().attemptNumber()).isEqualTo(1);
+        assertThat(attempt.getValue().channel()).isEqualTo("EMAIL");
+        assertThat(attempt.getValue().provider()).isEqualTo(SimulatedDeliveryProvider.PROVIDER);
+        assertThat(attempt.getValue().providerReference()).isEqualTo(providerReference);
+        assertThat(attempt.getValue().status()).isEqualTo(DeliveryResult.DELIVERED);
+        assertThat(attempt.getValue().errorCode()).isNull();
+        assertThat(attempt.getValue().errorMessage()).isNull();
+        assertThat(attempt.getValue().attemptedAt()).isEqualTo(sent.sentAt());
+        verify(outbox).insert(any());
+    }
+
+    @Test
+    void sendRejectsProviderFailureWithoutMarkingTheNotificationSent() {
+        Notification draft = notification("CREATED", "CLAIM_NOTICE_STANDARD", 1,
+                Instant.now().minusSeconds(60), null, 0);
+        when(notifications.findById(TENANT, NOTIFICATION_ID)).thenReturn(Optional.of(draft));
+        when(templates.find(TENANT, "CLAIM_NOTICE_STANDARD", 1, "EMAIL"))
+                .thenReturn(Optional.of(template("CLAIM_NOTICE_STANDARD", 1, "ACTIVE", UUID.randomUUID())));
+        when(deliveryProvider.provider()).thenReturn("BROKEN");
+        when(deliveryProvider.deliver(any()))
+                .thenReturn(DeliveryResult.failed("PROVIDER_DOWN", "relay unavailable"));
+
+        assertThatThrownBy(() -> service.send(TENANT, NOTIFICATION_ID))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.errorCode()).isEqualTo(ErrorCode.DELIVERY_FAILED);
+                    assertThat(ex.errorCode().status().value()).isEqualTo(502);
+                });
+
+        verify(notifications, never()).markSent(any(), any(), any(), any());
+        verify(deliveryAttempts, never()).insert(any());
+        verify(outbox, never()).insert(any());
+    }
+
+    @Test
+    void attemptsAreScopedToTheTenantThatOwnsTheNotification() {
+        Notification notification = notification("CREATED", null, null, null, null, 0);
+        when(notifications.findById(TENANT, NOTIFICATION_ID)).thenReturn(Optional.of(notification));
+        when(deliveryAttempts.findAll(TENANT, NOTIFICATION_ID)).thenReturn(List.of());
+
+        assertThat(service.attempts(TENANT, NOTIFICATION_ID)).isEmpty();
+        verify(deliveryAttempts).findAll(TENANT, NOTIFICATION_ID);
+
+        when(notifications.findById(OTHER_TENANT, NOTIFICATION_ID)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.attempts(OTHER_TENANT, NOTIFICATION_ID))
+                .isInstanceOfSatisfying(ApiException.class,
+                        ex -> assertThat(ex.errorCode()).isEqualTo(ErrorCode.NOT_FOUND));
+        verify(deliveryAttempts, never()).findAll(OTHER_TENANT, NOTIFICATION_ID);
     }
 
     @Test
@@ -410,11 +477,26 @@ class NotificationServiceTest {
 
     private Notification notification(String status, String templateCode, Integer templateVersion,
                                       Instant scheduledAt, Instant sentAt, int version,
+                                      String providerReference, Instant deliveredAt) {
+        return notification(status, templateCode, templateVersion, scheduledAt, sentAt, version,
+                null, null, null, providerReference, deliveredAt);
+    }
+
+    private Notification notification(String status, String templateCode, Integer templateVersion,
+                                      Instant scheduledAt, Instant sentAt, int version,
                                       String sourceType, UUID sourceId, String sourceReference) {
+        return notification(status, templateCode, templateVersion, scheduledAt, sentAt, version,
+                sourceType, sourceId, sourceReference, null, null);
+    }
+
+    private Notification notification(String status, String templateCode, Integer templateVersion,
+                                      Instant scheduledAt, Instant sentAt, int version,
+                                      String sourceType, UUID sourceId, String sourceReference,
+                                      String providerReference, Instant deliveredAt) {
         return new Notification(NOTIFICATION_ID, TENANT, "NTF-2026-000000001", "NEW_CLAIM_NOTICE",
                 "EMAIL", status, PARTY_ID, "Claim requires attention",
                 "Claim CLM-2026-000000001 requires attention.", templateCode, templateVersion,
-                scheduledAt, sentAt, version, Instant.now(), Instant.now(),
+                scheduledAt, sentAt, deliveredAt, providerReference, version, Instant.now(), Instant.now(),
                 sourceType, sourceId, sourceReference);
     }
 }

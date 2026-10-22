@@ -77,6 +77,12 @@ final class NotificationEvents {
         if (after.sentAt() != null) {
             data.put("sentAt", after.sentAt().toString());
         }
+        if (after.deliveredAt() != null) {
+            data.put("deliveredAt", after.deliveredAt().toString());
+        }
+        if (after.providerReference() != null) {
+            data.put("providerReference", after.providerReference());
+        }
         sourceLinkage(data, after);
 
         return envelope(after, SENT, after.version() + 1L, now, data);

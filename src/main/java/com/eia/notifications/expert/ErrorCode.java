@@ -18,6 +18,7 @@ public enum ErrorCode {
     SEND_BEFORE_SCHEDULED("EIA-NTF-9301", HttpStatus.BAD_REQUEST, "Notification is not due", "BUSINESS_RULE", false),
     INVALID_STATUS_TRANSITION("EIA-NTF-9302", HttpStatus.BAD_REQUEST, "Invalid status transition", "CONFLICT", false),
     STALE_VERSION("EIA-NTF-9303", HttpStatus.BAD_REQUEST, "Notification was modified concurrently", "CONFLICT", false),
+    DELIVERY_FAILED("EIA-NTF-9304", HttpStatus.BAD_GATEWAY, "Delivery provider failed", "DEPENDENCY", true),
     INVALID_CHANNEL("EIA-NTF-9401", HttpStatus.BAD_REQUEST, "Invalid notification channel", "VALIDATION", false),
     INVALID_STATUS("EIA-NTF-9402", HttpStatus.BAD_REQUEST, "Invalid notification status", "VALIDATION", false),
     INVALID_NOTIFICATION_TYPE("EIA-NTF-9403", HttpStatus.BAD_REQUEST, "Invalid notification type", "VALIDATION", false),

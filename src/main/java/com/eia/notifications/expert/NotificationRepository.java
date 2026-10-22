@@ -43,6 +43,8 @@ public class NotificationRepository {
             rs.getObject("template_version", Integer.class),
             instant(rs, "scheduled_at"),
             instant(rs, "sent_at"),
+            instant(rs, "delivered_at"),
+            rs.getString("provider_reference"),
             rs.getInt("version"),
             rs.getTimestamp("created_at").toInstant(),
             rs.getTimestamp("updated_at").toInstant(),
@@ -55,7 +57,8 @@ public class NotificationRepository {
         return jdbc.query("""
                 SELECT id, tenant_id, notification_number, notification_type, channel, status,
                        recipient_party_id, subject, body, template_code, template_version,
-                       scheduled_at, sent_at, version, created_at, updated_at,
+                       scheduled_at, sent_at, delivered_at, provider_reference,
+                       version, created_at, updated_at,
                        source_type, source_id, source_reference
                   FROM notification
                  WHERE tenant_id = ?
@@ -73,7 +76,8 @@ public class NotificationRepository {
         return jdbc.query("""
                 SELECT id, tenant_id, notification_number, notification_type, channel, status,
                        recipient_party_id, subject, body, template_code, template_version,
-                       scheduled_at, sent_at, version, created_at, updated_at,
+                       scheduled_at, sent_at, delivered_at, provider_reference,
+                       version, created_at, updated_at,
                        source_type, source_id, source_reference
                   FROM notification
                  WHERE tenant_id = ? AND source_type = ? AND source_id = ?
@@ -85,7 +89,8 @@ public class NotificationRepository {
         return jdbc.query("""
                 SELECT id, tenant_id, notification_number, notification_type, channel, status,
                        recipient_party_id, subject, body, template_code, template_version,
-                       scheduled_at, sent_at, version, created_at, updated_at,
+                       scheduled_at, sent_at, delivered_at, provider_reference,
+                       version, created_at, updated_at,
                        source_type, source_id, source_reference
                   FROM notification
                  WHERE tenant_id = ? AND id = ?
@@ -119,16 +124,18 @@ public class NotificationRepository {
      * state, at the expected version, and the send instant is not before the
      * scheduled instant. The DB CHECK constraint seals the same invariant.
      */
-    public Optional<Notification> markSent(Notification notification, Instant sentAt) {
+    public Optional<Notification> markSent(Notification notification, Instant sentAt, Instant deliveredAt,
+                                           String providerReference) {
         int updated = jdbc.update("""
                 UPDATE notification
-                   SET status = 'SENT', sent_at = ?, version = version + 1, updated_at = ?
+                   SET status = 'SENT', sent_at = ?, delivered_at = ?, provider_reference = ?,
+                       version = version + 1, updated_at = ?
                  WHERE tenant_id = ? AND id = ? AND version = ?
                    AND status IN ('CREATED', 'QUEUED')
                    AND (scheduled_at IS NULL OR ? >= scheduled_at)
                 """,
-                timestamp(sentAt), timestamp(sentAt), notification.tenantId(), notification.id(),
-                notification.version(), timestamp(sentAt));
+                timestamp(sentAt), timestamp(deliveredAt), providerReference, timestamp(sentAt),
+                notification.tenantId(), notification.id(), notification.version(), timestamp(sentAt));
         return updated == 0 ? Optional.empty() : findById(notification.tenantId(), notification.id());
     }
 

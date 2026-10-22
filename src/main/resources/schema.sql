@@ -72,17 +72,50 @@ ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_type VARCHAR(32);
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_id UUID;
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_reference VARCHAR(64);
 
+-- Delivery evidence from the provider call. NULL on notifications that predate the
+-- delivery provider or have not been sent yet.
+ALTER TABLE notification ADD COLUMN IF NOT EXISTS delivered_at TIMESTAMPTZ;
+ALTER TABLE notification ADD COLUMN IF NOT EXISTS provider_reference VARCHAR(64);
+
 -- Serves source-filtered notification lists, including their newest-first order.
 CREATE INDEX IF NOT EXISTS ix_notification_tenant_source_created
     ON notification (tenant_id, source_type, source_id, created_at DESC);
+
+-- One row per delivery attempt and channel. attempt_number is sequential per
+-- notification; the unique pair makes retries idempotent (NTF-11) and the tenant
+-- column keeps every diagnostic query tenant-scoped.
+CREATE TABLE IF NOT EXISTS notification_delivery_attempt (
+    id UUID PRIMARY KEY,
+    tenant_id UUID NOT NULL,
+    notification_id UUID NOT NULL,
+    attempt_number INTEGER NOT NULL,
+    channel VARCHAR(32) NOT NULL,
+    provider VARCHAR(32) NOT NULL,
+    provider_reference VARCHAR(64),
+    status VARCHAR(32) NOT NULL,
+    error_code VARCHAR(64),
+    error_message VARCHAR(500),
+    attempted_at TIMESTAMPTZ NOT NULL,
+    CONSTRAINT fk_notification_delivery_attempt_notification
+        FOREIGN KEY (notification_id) REFERENCES notification (id),
+    CONSTRAINT uq_notification_delivery_attempt UNIQUE (notification_id, attempt_number),
+    CONSTRAINT ck_notification_delivery_attempt_status CHECK (status IN ('DELIVERED', 'FAILED'))
+);
+
+CREATE INDEX IF NOT EXISTS ix_notification_delivery_attempt_tenant_notification
+    ON notification_delivery_attempt (tenant_id, notification_id, attempt_number);
 
 COMMENT ON TABLE notification IS 'Notification aggregate: an attention signal, never a transaction (SPEC 11.8.1).';
 COMMENT ON COLUMN notification.notification_number IS 'Immutable business key, NTF-{YEAR}-{SEQ} (SPEC 10.1).';
 COMMENT ON COLUMN notification.template_code IS 'Approved template used to render the notification (NTF-01, NTF-14).';
 COMMENT ON COLUMN notification.sent_at IS 'First successful send; must not precede scheduled_at.';
+COMMENT ON COLUMN notification.delivered_at IS 'Provider-confirmed delivery instant for the send recorded on this row.';
+COMMENT ON COLUMN notification.provider_reference IS 'Provider reference/idempotency key for the latest delivery attempt, for example SIM-<uuid>.';
 COMMENT ON COLUMN notification.source_type IS 'Source record type: DIRECT_CLAIM, ASSUMED_CLAIM, POLICY, CONTRACT, PAYMENT, CESSION, RETROCESSION, DOCUMENT, PARTY or OTHER.';
 COMMENT ON COLUMN notification.source_id IS 'Source record id; always paired with source_type.';
 COMMENT ON COLUMN notification.source_reference IS 'Optional human-readable source reference, for example CLM-2026-0000001.';
+COMMENT ON TABLE notification_delivery_attempt IS 'Delivery attempts and provider responses; delivery metadata retained 7 years (NTF-15).';
+COMMENT ON COLUMN notification_delivery_attempt.provider_reference IS 'Provider reference/idempotency key; retries reuse it (NTF-11).';
 COMMENT ON TABLE notification_template IS 'Approved notification templates; only ACTIVE + approved rows may issue notifications.';
 
 -- Demo tenant used by the local workbench and verification. Version 1 is approved;

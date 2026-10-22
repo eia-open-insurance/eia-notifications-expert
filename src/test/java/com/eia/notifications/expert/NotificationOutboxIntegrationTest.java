@@ -41,6 +41,7 @@ class NotificationOutboxIntegrationTest {
     @BeforeEach
     void clean() {
         transaction = new TransactionTemplate(transactionManager);
+        jdbc.update("DELETE FROM notification_delivery_attempt");
         jdbc.update("DELETE FROM outbox_event");
         jdbc.update("DELETE FROM notification");
         jdbc.update("DELETE FROM notification_template");
@@ -248,6 +249,7 @@ class NotificationOutboxIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "SELECT version FROM notification WHERE id = ?", Integer.class, notification.id()))
                 .isZero();
+        assertThat(count("notification_delivery_attempt")).isZero();
         assertThat(count("outbox_event")).isEqualTo(1);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM outbox_event

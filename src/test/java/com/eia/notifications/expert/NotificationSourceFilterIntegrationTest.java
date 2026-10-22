@@ -40,6 +40,7 @@ class NotificationSourceFilterIntegrationTest {
 
     @BeforeEach
     void clean() {
+        jdbc.update("DELETE FROM notification_delivery_attempt");
         jdbc.update("DELETE FROM outbox_event");
         jdbc.update("DELETE FROM notification");
     }

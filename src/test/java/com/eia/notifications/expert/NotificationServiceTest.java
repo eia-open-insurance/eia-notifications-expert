@@ -31,6 +31,7 @@ class NotificationServiceTest {
     private static final UUID NOTIFICATION_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000001");
     private static final UUID PARTY_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000002");
     private static final UUID SOURCE_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000003");
+    private static final String APPROVER = "a-adjuster";
 
     @Mock
     private NotificationRepository notifications;
@@ -96,7 +97,7 @@ class NotificationServiceTest {
         CreateNotificationRequest request = request("EMAIL", "PAYMENT_AUTHORITY_REQUEST",
                 "CLAIM_NOTICE_STANDARD", null);
         when(templates.find(TENANT, "CLAIM_NOTICE_STANDARD", 1, "EMAIL"))
-                .thenReturn(Optional.of(template("CLAIM_NOTICE_STANDARD", 1, "ACTIVE", UUID.randomUUID())));
+                .thenReturn(Optional.of(template("CLAIM_NOTICE_STANDARD", 1, "ACTIVE", APPROVER)));
         Notification persisted = notification("CREATED", "CLAIM_NOTICE_STANDARD", 1, Instant.now(), null, 0);
         when(notifications.create(request, "CLAIM_NOTICE_STANDARD", 1)).thenReturn(persisted);
 
@@ -188,7 +189,7 @@ class NotificationServiceTest {
                 draft.scheduledAt(), deliveredAt, 1, providerReference, deliveredAt);
         when(notifications.findById(TENANT, NOTIFICATION_ID)).thenReturn(Optional.of(draft));
         when(templates.find(TENANT, "CLAIM_NOTICE_STANDARD", 1, "EMAIL"))
-                .thenReturn(Optional.of(template("CLAIM_NOTICE_STANDARD", 1, "ACTIVE", UUID.randomUUID())));
+                .thenReturn(Optional.of(template("CLAIM_NOTICE_STANDARD", 1, "ACTIVE", APPROVER)));
         when(deliveryProvider.provider()).thenReturn(SimulatedDeliveryProvider.PROVIDER);
         when(deliveryProvider.deliver(any()))
                 .thenReturn(DeliveryResult.delivered(providerReference));
@@ -222,7 +223,7 @@ class NotificationServiceTest {
                 Instant.now().minusSeconds(60), null, 0);
         when(notifications.findById(TENANT, NOTIFICATION_ID)).thenReturn(Optional.of(draft));
         when(templates.find(TENANT, "CLAIM_NOTICE_STANDARD", 1, "EMAIL"))
-                .thenReturn(Optional.of(template("CLAIM_NOTICE_STANDARD", 1, "ACTIVE", UUID.randomUUID())));
+                .thenReturn(Optional.of(template("CLAIM_NOTICE_STANDARD", 1, "ACTIVE", APPROVER)));
         when(deliveryProvider.provider()).thenReturn("BROKEN");
         when(deliveryProvider.deliver(any()))
                 .thenReturn(DeliveryResult.failed("PROVIDER_DOWN", "relay unavailable"));
@@ -464,7 +465,7 @@ class NotificationServiceTest {
                 templateCode, templateVersion, null, sourceType, sourceId, sourceReference);
     }
 
-    private NotificationTemplate template(String code, int version, String status, UUID approvedBy) {
+    private NotificationTemplate template(String code, int version, String status, String approvedBy) {
         return new NotificationTemplate(UUID.randomUUID(), TENANT, code, version, null, "en-US",
                 status, approvedBy, approvedBy == null ? null : Instant.now());
     }

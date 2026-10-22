@@ -24,3 +24,10 @@ The format is based on Keep a Changelog and the project uses Semantic Versioning
   store `delivered_at` and `provider_reference` on the notification, and include both fields in the
   `notifications.notification.sent` payload.
 - Tenant-scoped delivery history: `GET /internal/v1/notifications/{id}/attempts`.
+
+### Changed
+
+- Notification template approval accepts a stable directory identifier (for example `a-adjuster`) as
+  `approvedBy` instead of a UUID: the value is trimmed and limited to 1..128 characters,
+  `notification_template.approved_by` is a forward-migrated `VARCHAR(128)`, and the template
+  projection and lifecycle event payloads carry the string identifier.

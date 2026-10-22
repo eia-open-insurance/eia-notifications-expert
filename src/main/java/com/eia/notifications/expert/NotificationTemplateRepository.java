@@ -45,7 +45,7 @@ public class NotificationTemplateRepository {
             rs.getString("locale"),
             rs.getString("body_template"),
             rs.getString("status"),
-            rs.getObject("approved_by", UUID.class),
+            rs.getString("approved_by"),
             instant(rs, "approved_at"),
             instant(rs, "created_at"),
             instant(rs, "updated_at")
@@ -122,7 +122,7 @@ public class NotificationTemplateRepository {
      * Conditional approval: only a DRAFT row moves to ACTIVE, and the update
      * records the approver and approval instant atomically.
      */
-    public Optional<NotificationTemplate> markApproved(UUID tenantId, UUID id, UUID approvedBy, Instant approvedAt) {
+    public Optional<NotificationTemplate> markApproved(UUID tenantId, UUID id, String approvedBy, Instant approvedAt) {
         int updated = jdbc.update("""
                 UPDATE notification_template
                    SET status = 'ACTIVE', approved_by = ?, approved_at = ?, updated_at = ?

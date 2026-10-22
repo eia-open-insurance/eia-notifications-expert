@@ -51,7 +51,7 @@ Writes data; does not decide business outcomes.
 - Notification template management (tenant-scoped via `X-EIA-Tenant` or `?tenantId=`):
   - `GET /api/v1/notifications/templates?status=&code=` (newest first)
   - `POST /api/v1/notifications/templates` (creates `DRAFT`; duplicate tenant/code/version/locale returns `409 EIA-NTF-9205`)
-  - `POST /api/v1/notifications/templates/{id}/approve` `{"approvedBy":"<uuid>"}` (`DRAFT` -> `ACTIVE`; already active returns `409 EIA-NTF-9206`)
+  - `POST /api/v1/notifications/templates/{id}/approve` `{"approvedBy":"<directory-id>"}` (`DRAFT` -> `ACTIVE`; the approver is a trimmed 1..128-character directory id such as `a-adjuster`; already active returns `409 EIA-NTF-9206`)
   - `POST /api/v1/notifications/templates/{id}/retire` (`DRAFT`/`ACTIVE` -> `RETIRED`)
   - The same routes are available under `/internal/v1/notifications/templates` for the domain service.
 - Template lifecycle writes `notifications.template.created`, `notifications.template.approved`, and `notifications.template.retired` to the transactional outbox with payload `{templateId, code, version, locale, status, approvedBy}`.

@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS notification_template (
     locale VARCHAR(35) NOT NULL,
     body_template TEXT NOT NULL,
     status VARCHAR(32) NOT NULL,
-    approved_by UUID,
+    approved_by VARCHAR(128),
     approved_at TIMESTAMP WITH TIME ZONE,
     effective_from DATE,
     effective_to DATE,
@@ -25,6 +25,12 @@ CREATE INDEX IF NOT EXISTS ix_notification_template_tenant_created
 
 CREATE INDEX IF NOT EXISTS ix_notification_template_tenant_status_code
     ON notification_template (tenant_id, status, template_code);
+
+-- H2-compatible mirror of the forward-only PostgreSQL migration from UUID to a
+-- directory-identifier approver.
+ALTER TABLE notification_template
+    ALTER COLUMN approved_by TYPE VARCHAR(128)
+    USING approved_by::text;
 
 CREATE TABLE IF NOT EXISTS notification (
     id UUID PRIMARY KEY,

@@ -38,7 +38,7 @@ class NotificationDeliveryIntegrationTest {
     private static final UUID OTHER_TENANT = UUID.fromString("22222222-2222-7222-8222-222222222222");
     private static final UUID PARTY_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000002");
     private static final UUID TEMPLATE_ID = UUID.fromString("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
-    private static final UUID APPROVER = UUID.fromString("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+    private static final String APPROVER = "a-adjuster";
 
     @Autowired
     private NotificationService service;

@@ -15,7 +15,7 @@ public record NotificationTemplateDto(
         String locale,
         String bodyTemplate,
         String status,
-        UUID approvedBy,
+        String approvedBy,
         Instant approvedAt,
         Instant createdAt,
         Instant updatedAt

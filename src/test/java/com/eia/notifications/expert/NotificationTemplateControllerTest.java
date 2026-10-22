@@ -28,7 +28,7 @@ class NotificationTemplateControllerTest {
 
     private static final UUID TENANT = UUID.fromString("11111111-1111-7111-8111-111111111111");
     private static final UUID TEMPLATE_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000010");
-    private static final UUID APPROVER = UUID.fromString("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+    private static final String APPROVER = "a-adjuster";
     private static final String BASE = "/api/v1/notifications/templates";
 
     @Autowired
@@ -171,7 +171,7 @@ class NotificationTemplateControllerTest {
                         .content("{\"approvedBy\":\"" + APPROVER + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.approvedBy").value(APPROVER.toString()))
+                .andExpect(jsonPath("$.approvedBy").value(APPROVER))
                 .andExpect(jsonPath("$.approvedAt").exists());
     }
 
@@ -219,7 +219,7 @@ class NotificationTemplateControllerTest {
                 .andExpect(jsonPath("$.code").value("EIA-NTF-9501"));
     }
 
-    private NotificationTemplateDto template(String status, UUID approvedBy, Instant approvedAt) {
+    private NotificationTemplateDto template(String status, String approvedBy, Instant approvedAt) {
         Instant createdAt = Instant.parse("2026-01-01T00:00:00Z");
         return new NotificationTemplateDto(TEMPLATE_ID, "CLAIM_NOTICE", 2, null, "en-US",
                 "Claim {{claimNumber}} requires attention.", status, approvedBy, approvedAt,

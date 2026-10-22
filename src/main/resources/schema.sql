@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS notification_template (
     locale VARCHAR(35) NOT NULL,
     body_template TEXT NOT NULL,
     status VARCHAR(32) NOT NULL,
-    approved_by UUID,
+    approved_by VARCHAR(128),
     approved_at TIMESTAMPTZ,
     effective_from DATE,
     effective_to DATE,
@@ -28,6 +28,14 @@ CREATE INDEX IF NOT EXISTS ix_notification_template_tenant_created
 
 CREATE INDEX IF NOT EXISTS ix_notification_template_tenant_status_code
     ON notification_template (tenant_id, status, template_code);
+
+-- Forward-only migration: the approver is a directory identifier (for example
+-- `a-adjuster`) rather than a UUID. Existing databases keep their old values as
+-- text; a fresh database is already VARCHAR(128) from the CREATE above, so the
+-- rewrite is a no-op.
+ALTER TABLE notification_template
+    ALTER COLUMN approved_by TYPE VARCHAR(128)
+    USING approved_by::text;
 
 CREATE TABLE IF NOT EXISTS notification (
     id UUID PRIMARY KEY,
@@ -130,7 +138,7 @@ INSERT INTO notification_template (
         '11111111-1111-7111-8111-111111111111',
         'CLAIM_NOTICE_STANDARD', 1, NULL, 'en-US',
         'Claim {{claimNumber}} requires attention.',
-        'ACTIVE', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', CURRENT_TIMESTAMP,
+        'ACTIVE', 'a-adjuster', CURRENT_TIMESTAMP,
         CURRENT_DATE, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     ),
     (
@@ -145,7 +153,7 @@ INSERT INTO notification_template (
         '11111111-1111-7111-8111-111111111111',
         'DUNNING_NOTICE', 1, NULL, 'en-US',
         'Premium reminder: {{policyNumber}} installment {{installmentNumber}} has {{outstandingAmount}} outstanding.',
-        'ACTIVE', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', CURRENT_TIMESTAMP,
+        'ACTIVE', 'a-adjuster', CURRENT_TIMESTAMP,
         CURRENT_DATE, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
 ON CONFLICT (tenant_id, template_code, template_version, locale) DO NOTHING;

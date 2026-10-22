@@ -75,11 +75,9 @@ public class NotificationTemplateService {
     }
 
     @Transactional
-    public NotificationTemplateDto approve(UUID tenantId, UUID id, UUID approvedBy) {
+    public NotificationTemplateDto approve(UUID tenantId, UUID id, String approvedBy) {
         requireTenant(tenantId);
-        if (approvedBy == null) {
-            throw validation("approvedBy", "must not be null");
-        }
+        String approver = requiredApprover(approvedBy);
 
         NotificationTemplate current = findOrThrow(tenantId, id);
         if (NotificationTemplateStatus.ACTIVE.name().equals(current.status())) {
@@ -92,7 +90,7 @@ public class NotificationTemplateService {
         }
 
         Instant approvedAt = Instant.now();
-        NotificationTemplate approved = templates.markApproved(tenantId, id, approvedBy, approvedAt)
+        NotificationTemplate approved = templates.markApproved(tenantId, id, approver, approvedAt)
                 .orElseThrow(() -> new ApiException(ErrorCode.TEMPLATE_STATUS_CONFLICT,
                         "Template '" + id + "' changed concurrently and was not approved; reload and retry."));
         outbox.insert(OutboxEvent.fromEnvelope(NotificationTemplateEvents.approved(approved, approvedAt)));
@@ -141,6 +139,24 @@ public class NotificationTemplateService {
                     "templateVersion must be a positive integer.");
         }
         return version;
+    }
+
+    /**
+     * The approver is a stable directory identifier (for example
+     * {@code a-adjuster}), stored trimmed and bounded to the column width.
+     */
+    private String requiredApprover(String approvedBy) {
+        if (approvedBy == null) {
+            throw validation("approvedBy", "must not be null");
+        }
+        String normalized = approvedBy.trim();
+        if (normalized.isEmpty()) {
+            throw validation("approvedBy", "must not be blank");
+        }
+        if (normalized.length() > 128) {
+            throw validation("approvedBy", "must be at most 128 characters");
+        }
+        return normalized;
     }
 
     private String requiredText(String value, String field, int maxLength) {

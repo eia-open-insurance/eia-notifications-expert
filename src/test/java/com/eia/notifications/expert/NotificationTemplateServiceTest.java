@@ -29,7 +29,7 @@ class NotificationTemplateServiceTest {
 
     private static final UUID TENANT = UUID.fromString("11111111-1111-7111-8111-111111111111");
     private static final UUID TEMPLATE_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000010");
-    private static final UUID APPROVER = UUID.fromString("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+    private static final String APPROVER = "a-adjuster";
 
     @Mock
     private NotificationTemplateRepository templates;
@@ -227,6 +227,61 @@ class NotificationTemplateServiceTest {
     }
 
     @Test
+    void approveTrimsDirectoryApprover() {
+        when(templates.findById(TENANT, TEMPLATE_ID)).thenReturn(Optional.of(template("DRAFT", null)));
+        when(templates.markApproved(eq(TENANT), eq(TEMPLATE_ID), eq(APPROVER), any()))
+                .thenReturn(Optional.of(template("ACTIVE", APPROVER)));
+
+        NotificationTemplateDto approved = service.approve(TENANT, TEMPLATE_ID, "  " + APPROVER + "  ");
+
+        assertThat(approved.approvedBy()).isEqualTo(APPROVER);
+        verify(templates).markApproved(eq(TENANT), eq(TEMPLATE_ID), eq(APPROVER), any());
+        ArgumentCaptor<OutboxEvent> event = ArgumentCaptor.forClass(OutboxEvent.class);
+        verify(outbox).insert(event.capture());
+        assertThat(event.getValue().payload()).contains("\"approvedBy\":\"" + APPROVER + "\"");
+    }
+
+    @Test
+    void approveRejectsWhitespaceOnlyApprover() {
+        assertThatThrownBy(() -> service.approve(TENANT, TEMPLATE_ID, "   "))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.errorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+                    assertThat(ex.errors()).singleElement()
+                            .satisfies(error -> assertThat(error.field()).isEqualTo("approvedBy"));
+                });
+        verify(templates, never()).findById(any(), any());
+        verify(templates, never()).markApproved(any(), any(), any(), any());
+        verify(outbox, never()).insert(any());
+    }
+
+    @Test
+    void approveRejectsOverlongApprover() {
+        String overlong = "a".repeat(129);
+
+        assertThatThrownBy(() -> service.approve(TENANT, TEMPLATE_ID, overlong))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.errorCode()).isEqualTo(ErrorCode.VALIDATION_FAILED);
+                    assertThat(ex.errors()).singleElement()
+                            .satisfies(error -> assertThat(error.field()).isEqualTo("approvedBy"));
+                });
+        verify(templates, never()).findById(any(), any());
+        verify(templates, never()).markApproved(any(), any(), any(), any());
+        verify(outbox, never()).insert(any());
+    }
+
+    @Test
+    void approveAcceptsMaximumLengthApprover() {
+        String maximum = "a".repeat(128);
+        when(templates.findById(TENANT, TEMPLATE_ID)).thenReturn(Optional.of(template("DRAFT", null)));
+        when(templates.markApproved(eq(TENANT), eq(TEMPLATE_ID), eq(maximum), any()))
+                .thenReturn(Optional.of(template("ACTIVE", maximum)));
+
+        NotificationTemplateDto approved = service.approve(TENANT, TEMPLATE_ID, maximum);
+
+        assertThat(approved.approvedBy()).isEqualTo(maximum);
+    }
+
+    @Test
     void retireActiveWritesRetiredEvent() {
         when(templates.findById(TENANT, TEMPLATE_ID)).thenReturn(Optional.of(template("ACTIVE", APPROVER)));
         when(templates.markRetired(eq(TENANT), eq(TEMPLATE_ID), any()))
@@ -275,7 +330,7 @@ class NotificationTemplateServiceTest {
                 "Claim {{claimNumber}} requires attention.");
     }
 
-    private NotificationTemplate template(String status, UUID approvedBy) {
+    private NotificationTemplate template(String status, String approvedBy) {
         Instant now = Instant.parse("2026-01-01T00:00:00Z");
         return new NotificationTemplate(TEMPLATE_ID, TENANT, "CLAIM_NOTICE", 2, "EMAIL", "en-US",
                 "Claim {{claimNumber}} requires attention.", status, approvedBy,

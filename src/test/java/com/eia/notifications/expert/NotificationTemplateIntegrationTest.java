@@ -30,7 +30,7 @@ class NotificationTemplateIntegrationTest {
 
     private static final UUID TENANT = UUID.fromString("11111111-1111-7111-8111-111111111111");
     private static final UUID OTHER_TENANT = UUID.fromString("22222222-2222-7222-8222-222222222222");
-    private static final UUID APPROVER = UUID.fromString("cccccccc-cccc-4ccc-8ccc-cccccccccccc");
+    private static final String APPROVER = "a-adjuster";
     private static final String BASE = "/api/v1/notifications/templates";
 
     @Autowired
@@ -178,6 +178,61 @@ class NotificationTemplateIntegrationTest {
     }
 
     @Test
+    void approveTrimsDirectoryApproverBeforePersisting() {
+        NotificationTemplateDto created = service.create(TENANT,
+                request("CLAIM_NOTICE", 2, "EMAIL", "en-US", "body"));
+
+        NotificationTemplateDto approved = service.approve(TENANT, created.id(), "  " + APPROVER + "  ");
+
+        assertThat(approved.approvedBy()).isEqualTo(APPROVER);
+        assertThat(jdbc.queryForObject(
+                "SELECT approved_by FROM notification_template WHERE tenant_id = ? AND id = ?",
+                String.class, TENANT, created.id())).isEqualTo(APPROVER);
+        assertThat((String) events(created.id()).get(1).get("payload"))
+                .contains("\"approvedBy\":\"" + APPROVER + "\"");
+    }
+
+    @Test
+    void approveRejectsBlankAndOverlongApproverOverHttp() throws Exception {
+        NotificationTemplateDto created = service.create(TENANT,
+                request("CLAIM_NOTICE", 2, "EMAIL", "en-US", "body"));
+        String path = BASE + "/" + created.id() + "/approve";
+
+        mvc.perform(post(path)
+                        .header("X-EIA-Tenant", TENANT.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approvedBy\":\"   \"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EIA-NTF-9404"))
+                .andExpect(jsonPath("$.errors[0].field").value("approvedBy"));
+
+        mvc.perform(post(path)
+                        .header("X-EIA-Tenant", TENANT.toString())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approvedBy\":\"" + "a".repeat(129) + "\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("EIA-NTF-9404"))
+                .andExpect(jsonPath("$.errors[0].field").value("approvedBy"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM notification_template WHERE tenant_id = ? AND id = ?",
+                String.class, TENANT, created.id())).isEqualTo("DRAFT");
+        assertThat(count("outbox_event")).isEqualTo(1);
+    }
+
+    @Test
+    void approvedByColumnIsVarchar128() {
+        Map<String, Object> column = jdbc.queryForMap("""
+                SELECT data_type, character_maximum_length
+                  FROM information_schema.columns
+                 WHERE table_name = 'notification_template' AND column_name = 'approved_by'
+                """);
+
+        assertThat((String) column.get("data_type")).isEqualToIgnoringCase("character varying");
+        assertThat(((Number) column.get("character_maximum_length")).intValue()).isEqualTo(128);
+    }
+
+    @Test
     void retireActiveMovesToRetiredWithEvent() {
         NotificationTemplateDto created = service.create(TENANT,
                 request("CLAIM_NOTICE", 2, "EMAIL", "en-US", "body"));
@@ -275,7 +330,7 @@ class NotificationTemplateIntegrationTest {
                         .content("{\"approvedBy\":\"" + APPROVER + "\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.approvedBy").value(APPROVER.toString()));
+                .andExpect(jsonPath("$.approvedBy").value(APPROVER));
 
         mvc.perform(post(BASE + "/{id}/retire", id)
                         .header("X-EIA-Tenant", TENANT.toString()))

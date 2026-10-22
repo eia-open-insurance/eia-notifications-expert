@@ -20,7 +20,7 @@ public record NotificationTemplate(
         String locale,
         String bodyTemplate,
         String status,
-        UUID approvedBy,
+        String approvedBy,
         Instant approvedAt,
         Instant createdAt,
         Instant updatedAt
@@ -37,7 +37,7 @@ public record NotificationTemplate(
                                 String channel,
                                 String locale,
                                 String status,
-                                UUID approvedBy,
+                                String approvedBy,
                                 Instant approvedAt) {
         this(id, tenantId, templateCode, templateVersion, channel, locale, null, status,
                 approvedBy, approvedAt, null, null);

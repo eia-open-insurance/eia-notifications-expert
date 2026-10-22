@@ -206,6 +206,66 @@ class NotificationServiceTest {
     }
 
     @Test
+    void listFiltersByNormalizedSourcePair() {
+        Notification linked = notification("CREATED", null, null, null, null, 0,
+                "DIRECT_CLAIM", SOURCE_ID, "CLM-2026-0000001");
+        when(notifications.findAllBySource(TENANT, "DIRECT_CLAIM", SOURCE_ID))
+                .thenReturn(List.of(linked));
+
+        assertThat(service.list(TENANT, " direct_claim ", SOURCE_ID)).containsExactly(linked);
+
+        verify(notifications).findAllBySource(TENANT, "DIRECT_CLAIM", SOURCE_ID);
+        verify(notifications, never()).findAll(any());
+    }
+
+    @Test
+    void listWithoutSourceFilterUsesUnfilteredQuery() {
+        when(notifications.findAll(TENANT)).thenReturn(List.of());
+
+        assertThat(service.list(TENANT, null, null)).isEmpty();
+
+        verify(notifications).findAll(TENANT);
+        verify(notifications, never()).findAllBySource(any(), any(), any());
+    }
+
+    @Test
+    void listRejectsPartialSourceFilter() {
+        assertThatThrownBy(() -> service.list(TENANT, "POLICY", null))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.errorCode()).isEqualTo(ErrorCode.INVALID_SOURCE_FILTER);
+                    assertThat(ex.errorCode().status().value()).isEqualTo(400);
+                    assertThat(ex.getMessage()).contains("sourceId is required");
+                });
+
+        assertThatThrownBy(() -> service.list(TENANT, null, SOURCE_ID))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.errorCode()).isEqualTo(ErrorCode.INVALID_SOURCE_FILTER);
+                    assertThat(ex.errorCode().status().value()).isEqualTo(400);
+                    assertThat(ex.getMessage()).contains("sourceType is required");
+                });
+
+        assertThatThrownBy(() -> service.list(TENANT, "  ", SOURCE_ID))
+                .isInstanceOfSatisfying(ApiException.class,
+                        ex -> assertThat(ex.errorCode()).isEqualTo(ErrorCode.INVALID_SOURCE_FILTER));
+
+        verify(notifications, never()).findAll(any());
+        verify(notifications, never()).findAllBySource(any(), any(), any());
+    }
+
+    @Test
+    void listRejectsUnknownSourceTypeFilter() {
+        assertThatThrownBy(() -> service.list(TENANT, "BRIBE", SOURCE_ID))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.errorCode()).isEqualTo(ErrorCode.INVALID_SOURCE_TYPE);
+                    assertThat(ex.errorCode().status().value()).isEqualTo(400);
+                    assertThat(ex.getMessage()).contains("not one of");
+                });
+
+        verify(notifications, never()).findAll(any());
+        verify(notifications, never()).findAllBySource(any(), any(), any());
+    }
+
+    @Test
     void createNormalizesAndPersistsSourceLinkage() {
         CreateNotificationRequest request = request("EMAIL", "NEW_CLAIM_NOTICE", null, null,
                 " direct_claim ", SOURCE_ID, "  CLM-2026-0000001  ");

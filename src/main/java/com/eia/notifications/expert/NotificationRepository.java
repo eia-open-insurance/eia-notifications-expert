@@ -63,6 +63,24 @@ public class NotificationRepository {
                 """, MAPPER, tenantId);
     }
 
+    /**
+     * Tenant-scoped list of the notifications linked to exactly one source.
+     * The caller supplies a complete, normalized pair; the index
+     * {@code (tenant_id, source_type, source_id, created_at DESC)} serves both
+     * the filter and the newest-first order.
+     */
+    public List<Notification> findAllBySource(UUID tenantId, String sourceType, UUID sourceId) {
+        return jdbc.query("""
+                SELECT id, tenant_id, notification_number, notification_type, channel, status,
+                       recipient_party_id, subject, body, template_code, template_version,
+                       scheduled_at, sent_at, version, created_at, updated_at,
+                       source_type, source_id, source_reference
+                  FROM notification
+                 WHERE tenant_id = ? AND source_type = ? AND source_id = ?
+                 ORDER BY created_at DESC, id
+                """, MAPPER, tenantId, sourceType, sourceId);
+    }
+
     public Optional<Notification> findById(UUID tenantId, UUID id) {
         return jdbc.query("""
                 SELECT id, tenant_id, notification_number, notification_type, channel, status,

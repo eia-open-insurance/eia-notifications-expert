@@ -34,7 +34,21 @@ public class NotificationService {
     }
 
     public List<Notification> list(UUID tenantId) {
-        return notifications.findAll(tenantId);
+        return list(tenantId, null, null);
+    }
+
+    /**
+     * Tenant-scoped list, optionally narrowed to the notifications linked to
+     * one source. The filter is all-or-nothing: a partial pair is rejected
+     * rather than silently widening the result.
+     */
+    public List<Notification> list(UUID tenantId, String rawSourceType, UUID sourceId) {
+        String sourceType = NotificationSourceType.normalize(rawSourceType);
+        NotificationSourceType.validateFilter(sourceType, sourceId);
+        if (sourceType == null) {
+            return notifications.findAll(tenantId);
+        }
+        return notifications.findAllBySource(tenantId, sourceType, sourceId);
     }
 
     public Notification get(UUID tenantId, UUID id) {

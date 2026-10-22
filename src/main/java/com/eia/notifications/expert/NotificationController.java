@@ -29,8 +29,10 @@ public class NotificationController {
     }
 
     @GetMapping
-    public List<Notification> list(@RequestParam UUID tenantId) {
-        return service.list(tenantId);
+    public List<Notification> list(@RequestParam UUID tenantId,
+                                   @RequestParam(name = "sourceType", required = false) String sourceType,
+                                   @RequestParam(name = "sourceId", required = false) UUID sourceId) {
+        return service.list(tenantId, sourceType, sourceId);
     }
 
     @GetMapping("/{id}")

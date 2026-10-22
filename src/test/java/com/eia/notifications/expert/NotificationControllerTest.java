@@ -40,13 +40,89 @@ class NotificationControllerTest {
 
     @Test
     void listReturnsNotifications() throws Exception {
-        when(service.list(TENANT)).thenReturn(List.of(notification("CREATED", null, null)));
+        when(service.list(TENANT, null, null)).thenReturn(List.of(notification("CREATED", null, null)));
 
         mvc.perform(get("/internal/v1/notifications").param("tenantId", TENANT.toString()))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
                 .andExpect(jsonPath("$[0].notificationNumber").value("NTF-2026-000000001"))
                 .andExpect(jsonPath("$[0].status").value("CREATED"));
+    }
+
+    @Test
+    void listFiltersBySourceTypeAndSourceId() throws Exception {
+        when(service.list(TENANT, "DIRECT_CLAIM", SOURCE_ID))
+                .thenReturn(List.of(notification("CREATED", null, null,
+                        "DIRECT_CLAIM", SOURCE_ID, "CLM-2026-0000001")));
+
+        mvc.perform(get("/internal/v1/notifications")
+                        .param("tenantId", TENANT.toString())
+                        .param("sourceType", "DIRECT_CLAIM")
+                        .param("sourceId", SOURCE_ID.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].sourceType").value("DIRECT_CLAIM"))
+                .andExpect(jsonPath("$[0].sourceId").value(SOURCE_ID.toString()));
+
+        verify(service).list(TENANT, "DIRECT_CLAIM", SOURCE_ID);
+    }
+
+    @Test
+    void listRejectsSourceTypeWithoutSourceIdWithStructured400() throws Exception {
+        when(service.list(TENANT, "POLICY", null))
+                .thenThrow(new ApiException(ErrorCode.INVALID_SOURCE_FILTER,
+                        "sourceId is required when sourceType is supplied."));
+
+        mvc.perform(get("/internal/v1/notifications")
+                        .param("tenantId", TENANT.toString())
+                        .param("sourceType", "POLICY"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("EIA-NTF-9412"))
+                .andExpect(jsonPath("$.category").value("VALIDATION"));
+    }
+
+    @Test
+    void listRejectsSourceIdWithoutSourceTypeWithStructured400() throws Exception {
+        when(service.list(TENANT, null, SOURCE_ID))
+                .thenThrow(new ApiException(ErrorCode.INVALID_SOURCE_FILTER,
+                        "sourceType is required when sourceId is supplied."));
+
+        mvc.perform(get("/internal/v1/notifications")
+                        .param("tenantId", TENANT.toString())
+                        .param("sourceId", SOURCE_ID.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("EIA-NTF-9412"))
+                .andExpect(jsonPath("$.category").value("VALIDATION"));
+    }
+
+    @Test
+    void listRejectsUnknownSourceTypeWithStructured400() throws Exception {
+        when(service.list(TENANT, "BRIBE", SOURCE_ID))
+                .thenThrow(new ApiException(ErrorCode.INVALID_SOURCE_TYPE,
+                        "Source type 'BRIBE' is not one of: DIRECT_CLAIM, ASSUMED_CLAIM, POLICY, "
+                                + "CONTRACT, PAYMENT, OTHER."));
+
+        mvc.perform(get("/internal/v1/notifications")
+                        .param("tenantId", TENANT.toString())
+                        .param("sourceType", "BRIBE")
+                        .param("sourceId", SOURCE_ID.toString()))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("EIA-NTF-9409"))
+                .andExpect(jsonPath("$.category").value("VALIDATION"));
+    }
+
+    @Test
+    void listRejectsMalformedSourceIdWithStructured400() throws Exception {
+        mvc.perform(get("/internal/v1/notifications")
+                        .param("tenantId", TENANT.toString())
+                        .param("sourceType", "DIRECT_CLAIM")
+                        .param("sourceId", "not-a-uuid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("EIA-NTF-9502"))
+                .andExpect(jsonPath("$.category").value("VALIDATION"));
     }
 
     @Test

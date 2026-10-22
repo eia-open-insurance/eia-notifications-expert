@@ -2,6 +2,7 @@ package com.eia.notifications.expert;
 
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -38,5 +39,23 @@ public enum NotificationSourceType {
                 "Source type '" + value + "' is not one of: " + Arrays.stream(values())
                         .map(Enum::name)
                         .collect(Collectors.joining(", ")) + ".");
+    }
+
+    /**
+     * A list filter is either absent or a complete normalized sourceType and
+     * sourceId pair; half a pair would silently widen the result.
+     */
+    public static void validateFilter(String sourceType, UUID sourceId) {
+        if (sourceType == null && sourceId == null) {
+            return;
+        }
+        if (sourceType == null) {
+            throw new ApiException(ErrorCode.INVALID_SOURCE_FILTER,
+                    "sourceType is required when sourceId is supplied.");
+        }
+        if (sourceId == null) {
+            throw new ApiException(ErrorCode.INVALID_SOURCE_FILTER,
+                    "sourceId is required when sourceType is supplied.");
+        }
     }
 }

@@ -71,6 +71,10 @@ ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_type VARCHAR(32);
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_id UUID;
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_reference VARCHAR(64);
 
+-- Serves source-filtered notification lists, including their newest-first order.
+CREATE INDEX IF NOT EXISTS ix_notification_tenant_source_created
+    ON notification (tenant_id, source_type, source_id, created_at DESC);
+
 COMMENT ON TABLE notification IS 'Notification aggregate: an attention signal, never a transaction (SPEC 11.8.1).';
 COMMENT ON COLUMN notification.notification_number IS 'Immutable business key, NTF-{YEAR}-{SEQ} (SPEC 10.1).';
 COMMENT ON COLUMN notification.template_code IS 'Approved template used to render the notification (NTF-01, NTF-14).';

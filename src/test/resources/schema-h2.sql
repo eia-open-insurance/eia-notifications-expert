@@ -60,6 +60,11 @@ ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_type VARCHAR(32);
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_id UUID;
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_reference VARCHAR(64);
 
+-- Serves source-filtered notification lists, including their newest-first order,
+-- mirroring the idempotent PostgreSQL index migration.
+CREATE INDEX IF NOT EXISTS ix_notification_tenant_source_created
+    ON notification (tenant_id, source_type, source_id, created_at DESC);
+
 -- H2-compatible copy of the PostgreSQL outbox table. JSON payloads are TEXT
 -- here; production DDL uses jsonb.
 CREATE TABLE IF NOT EXISTS outbox_event (

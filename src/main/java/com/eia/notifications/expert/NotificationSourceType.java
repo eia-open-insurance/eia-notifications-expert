@@ -10,8 +10,9 @@ import java.util.stream.Collectors;
  * validated against this closed set before persistence.
  *
  * <p>A notification may point at the business record that caused it (a claim,
- * policy, contract, payment or an unclassified source). source_type and
- * source_id are supplied as a pair; sourceReference is optional metadata.</p>
+ * policy, contract, payment, cession, retrocession, document, party or an
+ * unclassified source). source_type and source_id are supplied as a pair;
+ * sourceReference is optional metadata.</p>
  */
 public enum NotificationSourceType {
     DIRECT_CLAIM,
@@ -19,6 +20,10 @@ public enum NotificationSourceType {
     POLICY,
     CONTRACT,
     PAYMENT,
+    CESSION,
+    RETROCESSION,
+    DOCUMENT,
+    PARTY,
     OTHER;
 
     /**

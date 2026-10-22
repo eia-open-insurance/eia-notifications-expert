@@ -61,6 +61,24 @@ class NotificationSourceFilterIntegrationTest {
     }
 
     @Test
+    void filtersByEveryAddedSourceType() {
+        UUID cession = insert(TENANT, "NTF-2026-0000011", "CESSION", SOURCE_ID, BASE);
+        UUID retrocession = insert(TENANT, "NTF-2026-0000012", "RETROCESSION", SOURCE_ID,
+                BASE.plusSeconds(10));
+        UUID document = insert(TENANT, "NTF-2026-0000013", "DOCUMENT", SOURCE_ID, BASE.plusSeconds(20));
+        UUID party = insert(TENANT, "NTF-2026-0000014", "PARTY", SOURCE_ID, BASE.plusSeconds(30));
+
+        assertThat(service.list(TENANT, "CESSION", SOURCE_ID))
+                .extracting(Notification::id).containsExactly(cession);
+        assertThat(service.list(TENANT, "RETROCESSION", SOURCE_ID))
+                .extracting(Notification::id).containsExactly(retrocession);
+        assertThat(service.list(TENANT, "DOCUMENT", SOURCE_ID))
+                .extracting(Notification::id).containsExactly(document);
+        assertThat(service.list(TENANT, "PARTY", SOURCE_ID))
+                .extracting(Notification::id).containsExactly(party);
+    }
+
+    @Test
     void keepsTheTenantWallForSourceFilters() {
         UUID mine = insert(TENANT, "NTF-2026-0000001", "DIRECT_CLAIM", SOURCE_ID, BASE);
         UUID foreign = insert(OTHER_TENANT, "NTF-2026-0000002", "DIRECT_CLAIM", SOURCE_ID,

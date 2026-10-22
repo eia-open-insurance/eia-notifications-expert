@@ -63,10 +63,11 @@ CREATE INDEX IF NOT EXISTS ix_notification_tenant_created
 CREATE INDEX IF NOT EXISTS ix_notification_tenant_status_created
     ON notification (tenant_id, status, created_at DESC);
 
--- Notification source record linkage (a claim, policy, contract, payment or other
--- source record). Additive and idempotent so an existing notification table gains
--- the columns on startup. source_type and source_id are written as a pair; the
--- service validates the linkage and the enum before persistence.
+-- Notification source record linkage (a claim, policy, contract, payment, cession,
+-- retrocession, document, party or other source record). Additive and idempotent so
+-- an existing notification table gains the columns on startup. source_type and
+-- source_id are written as a pair; the service validates the linkage and the enum
+-- before persistence.
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_type VARCHAR(32);
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_id UUID;
 ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_reference VARCHAR(64);
@@ -79,7 +80,7 @@ COMMENT ON TABLE notification IS 'Notification aggregate: an attention signal, n
 COMMENT ON COLUMN notification.notification_number IS 'Immutable business key, NTF-{YEAR}-{SEQ} (SPEC 10.1).';
 COMMENT ON COLUMN notification.template_code IS 'Approved template used to render the notification (NTF-01, NTF-14).';
 COMMENT ON COLUMN notification.sent_at IS 'First successful send; must not precede scheduled_at.';
-COMMENT ON COLUMN notification.source_type IS 'Source record type: DIRECT_CLAIM, ASSUMED_CLAIM, POLICY, CONTRACT, PAYMENT or OTHER.';
+COMMENT ON COLUMN notification.source_type IS 'Source record type: DIRECT_CLAIM, ASSUMED_CLAIM, POLICY, CONTRACT, PAYMENT, CESSION, RETROCESSION, DOCUMENT, PARTY or OTHER.';
 COMMENT ON COLUMN notification.source_id IS 'Source record id; always paired with source_type.';
 COMMENT ON COLUMN notification.source_reference IS 'Optional human-readable source reference, for example CLM-2026-0000001.';
 COMMENT ON TABLE notification_template IS 'Approved notification templates; only ACTIVE + approved rows may issue notifications.';

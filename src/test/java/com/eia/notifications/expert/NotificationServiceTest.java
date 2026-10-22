@@ -258,7 +258,8 @@ class NotificationServiceTest {
                 .isInstanceOfSatisfying(ApiException.class, ex -> {
                     assertThat(ex.errorCode()).isEqualTo(ErrorCode.INVALID_SOURCE_TYPE);
                     assertThat(ex.errorCode().status().value()).isEqualTo(400);
-                    assertThat(ex.getMessage()).contains("not one of");
+                    assertThat(ex.getMessage()).contains("not one of",
+                            "CESSION", "RETROCESSION", "DOCUMENT", "PARTY", "OTHER");
                 });
 
         verify(notifications, never()).findAll(any());
@@ -301,7 +302,8 @@ class NotificationServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"DIRECT_CLAIM", "ASSUMED_CLAIM", "POLICY", "CONTRACT", "PAYMENT", "OTHER"})
+    @ValueSource(strings = {"DIRECT_CLAIM", "ASSUMED_CLAIM", "POLICY", "CONTRACT", "PAYMENT",
+            "CESSION", "RETROCESSION", "DOCUMENT", "PARTY", "OTHER"})
     void createAcceptsEverySupportedSourceTypeWithoutReference(String sourceType) {
         CreateNotificationRequest request = request("IN_APP", "MENTION", null, null,
                 sourceType, SOURCE_ID, null);

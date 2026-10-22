@@ -101,7 +101,7 @@ class NotificationControllerTest {
         when(service.list(TENANT, "BRIBE", SOURCE_ID))
                 .thenThrow(new ApiException(ErrorCode.INVALID_SOURCE_TYPE,
                         "Source type 'BRIBE' is not one of: DIRECT_CLAIM, ASSUMED_CLAIM, POLICY, "
-                                + "CONTRACT, PAYMENT, OTHER."));
+                                + "CONTRACT, PAYMENT, CESSION, RETROCESSION, DOCUMENT, PARTY, OTHER."));
 
         mvc.perform(get("/internal/v1/notifications")
                         .param("tenantId", TENANT.toString())

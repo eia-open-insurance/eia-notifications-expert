@@ -1,6 +1,7 @@
 package com.eia.notifications.expert;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
@@ -11,8 +12,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -83,6 +86,30 @@ class NotificationControllerTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(NOTIFICATION_ID.toString()))
                 .andExpect(jsonPath("$.status").value("CREATED"));
+    }
+
+    @Test
+    void createAcceptsDunningNoticeType() throws Exception {
+        when(service.create(any(CreateNotificationRequest.class)))
+                .thenReturn(notification("CREATED", null, null));
+
+        mvc.perform(post("/internal/v1/notifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "tenantId": "11111111-1111-7111-8111-111111111111",
+                                  "notificationType": "DUNNING_NOTICE",
+                                  "channel": "EMAIL",
+                                  "recipientPartyId": "0192f3a4-0000-7000-8000-000000000002",
+                                  "subject": "Payment is overdue",
+                                  "body": "Invoice INV-2026-000000001 is overdue."
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        ArgumentCaptor<CreateNotificationRequest> request = ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(service).create(request.capture());
+        assertThat(request.getValue().notificationType()).isEqualTo("DUNNING_NOTICE");
     }
 
     @Test

@@ -94,6 +94,17 @@ class NotificationServiceTest {
     }
 
     @Test
+    void createAcceptsDunningNoticeType() {
+        CreateNotificationRequest request = request("IN_APP", "DUNNING_NOTICE", null, null);
+        Notification persisted = notification("CREATED", null, null, null, null, 0);
+        when(notifications.create(request, null, null)).thenReturn(persisted);
+
+        assertThat(service.create(request)).isEqualTo(persisted);
+        verify(notifications).create(request, null, null);
+        verify(outbox).insert(any());
+    }
+
+    @Test
     void createAllowsDraftWithoutTemplate() {
         CreateNotificationRequest request = request("IN_APP", "MENTION", null, null);
         Notification persisted = notification("CREATED", null, null, null, null, 0);

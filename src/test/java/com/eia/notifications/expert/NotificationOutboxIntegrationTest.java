@@ -94,6 +94,18 @@ class NotificationOutboxIntegrationTest {
     }
 
     @Test
+    void createPersistsDunningNoticeType() {
+        Notification notification = service.create(new CreateNotificationRequest(TENANT, "DUNNING_NOTICE",
+                "EMAIL", PARTY_ID, "Payment is overdue", "Invoice INV-2026-000000001 is overdue.",
+                null, null, null));
+
+        assertThat(notification.notificationType()).isEqualTo("DUNNING_NOTICE");
+        assertThat(jdbc.queryForObject(
+                "SELECT notification_type FROM notification WHERE id = ?", String.class, notification.id()))
+                .isEqualTo("DUNNING_NOTICE");
+    }
+
+    @Test
     void createRollbackLeavesNeitherTheNotificationNorTheEvent() {
         assertThatThrownBy(() -> transaction.executeWithoutResult(status -> {
             service.create(request());

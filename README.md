@@ -44,6 +44,13 @@ Writes data; does not decide business outcomes.
   - `POST /internal/v1/notifications`
   - `POST /internal/v1/notifications/{id}/send?tenantId={uuid}`
 - Enforced invariants: SPEC 11.8.5 channel/status sets, `sent_at >= scheduled_at`, and issuance only with an approved `ACTIVE` template (NTF-01, NTF-14). Errors are RFC 9457 `application/problem+json` with stable `EIA-NTF-*` codes.
+- Notification template management (tenant-scoped via `X-EIA-Tenant` or `?tenantId=`):
+  - `GET /api/v1/notifications/templates?status=&code=` (newest first)
+  - `POST /api/v1/notifications/templates` (creates `DRAFT`; duplicate tenant/code/version/locale returns `409 EIA-NTF-9205`)
+  - `POST /api/v1/notifications/templates/{id}/approve` `{"approvedBy":"<uuid>"}` (`DRAFT` -> `ACTIVE`; already active returns `409 EIA-NTF-9206`)
+  - `POST /api/v1/notifications/templates/{id}/retire` (`DRAFT`/`ACTIVE` -> `RETIRED`)
+  - The same routes are available under `/internal/v1/notifications/templates` for the domain service.
+- Template lifecycle writes `notifications.template.created`, `notifications.template.approved`, and `notifications.template.retired` to the transactional outbox with payload `{templateId, code, version, locale, status, approvedBy}`.
 - The demo tenant `11111111-1111-7111-8111-111111111111` is seeded with approved `CLAIM_NOTICE_STANDARD` v1 and unapproved `CLAIM_NOTICE_DRAFT` v1 templates.
 
 ## Local verification

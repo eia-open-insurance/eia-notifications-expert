@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS notification_template (
     CONSTRAINT ck_notification_template_approval CHECK (status <> 'ACTIVE' OR approved_by IS NOT NULL)
 );
 
+CREATE INDEX IF NOT EXISTS ix_notification_template_tenant_created
+    ON notification_template (tenant_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS ix_notification_template_tenant_status_code
+    ON notification_template (tenant_id, status, template_code);
+
 CREATE TABLE IF NOT EXISTS notification (
     id UUID PRIMARY KEY,
     tenant_id UUID NOT NULL,

@@ -12,6 +12,9 @@ public enum ErrorCode {
     TEMPLATE_NOT_APPROVED("EIA-NTF-9202", HttpStatus.BAD_REQUEST, "Template is not approved", "BUSINESS_RULE", false),
     TEMPLATE_NOT_FOUND("EIA-NTF-9203", HttpStatus.BAD_REQUEST, "Template not found", "BUSINESS_RULE", false),
     TEMPLATE_CHANNEL_MISMATCH("EIA-NTF-9204", HttpStatus.BAD_REQUEST, "Template channel mismatch", "BUSINESS_RULE", false),
+    TEMPLATE_ALREADY_EXISTS("EIA-NTF-9205", HttpStatus.CONFLICT, "Template already exists", "CONFLICT", false),
+    TEMPLATE_ALREADY_ACTIVE("EIA-NTF-9206", HttpStatus.CONFLICT, "Template is already active", "CONFLICT", false),
+    TEMPLATE_STATUS_CONFLICT("EIA-NTF-9207", HttpStatus.CONFLICT, "Invalid template status transition", "CONFLICT", false),
     SEND_BEFORE_SCHEDULED("EIA-NTF-9301", HttpStatus.BAD_REQUEST, "Notification is not due", "BUSINESS_RULE", false),
     INVALID_STATUS_TRANSITION("EIA-NTF-9302", HttpStatus.BAD_REQUEST, "Invalid status transition", "CONFLICT", false),
     STALE_VERSION("EIA-NTF-9303", HttpStatus.BAD_REQUEST, "Notification was modified concurrently", "CONFLICT", false),
@@ -22,6 +25,7 @@ public enum ErrorCode {
     INVALID_TEMPLATE_VERSION("EIA-NTF-9405", HttpStatus.BAD_REQUEST, "Invalid template version", "VALIDATION", false),
     MALFORMED_REQUEST("EIA-NTF-9406", HttpStatus.BAD_REQUEST, "Malformed request", "VALIDATION", false),
     DATA_INTEGRITY_VIOLATION("EIA-NTF-9407", HttpStatus.BAD_REQUEST, "Data integrity violation", "VALIDATION", false),
+    INVALID_TEMPLATE_STATUS("EIA-NTF-9408", HttpStatus.BAD_REQUEST, "Invalid template status", "VALIDATION", false),
     TENANT_REQUIRED("EIA-NTF-9501", HttpStatus.BAD_REQUEST, "Tenant is required", "VALIDATION", false),
     INVALID_ARGUMENT("EIA-NTF-9502", HttpStatus.BAD_REQUEST, "Invalid argument", "VALIDATION", false),
     INTERNAL_ERROR("EIA-NTF-9999", HttpStatus.INTERNAL_SERVER_ERROR, "Internal error", "INTERNAL", false);

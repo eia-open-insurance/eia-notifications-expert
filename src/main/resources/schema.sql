@@ -84,6 +84,14 @@ INSERT INTO notification_template (
         'CLAIM_NOTICE_DRAFT', 1, NULL, 'en-US',
         'Draft claim notice for {{claimNumber}}.',
         'DRAFT', NULL, NULL, NULL, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+    ),
+    (
+        'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+        '11111111-1111-7111-8111-111111111111',
+        'DUNNING_NOTICE', 1, NULL, 'en-US',
+        'Premium reminder: {{policyNumber}} installment {{installmentNumber}} has {{outstandingAmount}} outstanding.',
+        'ACTIVE', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', CURRENT_TIMESTAMP,
+        CURRENT_DATE, NULL, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
     )
 ON CONFLICT (tenant_id, template_code, template_version, locale) DO NOTHING;
 

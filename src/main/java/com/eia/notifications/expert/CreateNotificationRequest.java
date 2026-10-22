@@ -21,6 +21,9 @@ public record CreateNotificationRequest(
         @NotBlank String body,
         @Size(max = 64) String templateCode,
         Integer templateVersion,
-        Instant scheduledAt
+        Instant scheduledAt,
+        String sourceType,
+        UUID sourceId,
+        @Size(max = 64) String sourceReference
 ) {
 }

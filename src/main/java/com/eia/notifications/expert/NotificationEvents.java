@@ -60,6 +60,7 @@ final class NotificationEvents {
         if (notification.scheduledAt() != null) {
             data.put("scheduledAt", notification.scheduledAt().toString());
         }
+        sourceLinkage(data, notification);
 
         return envelope(notification, CREATED, notification.version() + 1L, now, data);
     }
@@ -76,8 +77,26 @@ final class NotificationEvents {
         if (after.sentAt() != null) {
             data.put("sentAt", after.sentAt().toString());
         }
+        sourceLinkage(data, after);
 
         return envelope(after, SENT, after.version() + 1L, now, data);
+    }
+
+    /**
+     * Source linkage is optional. Each present field is emitted so consumers can
+     * correlate the notification with the claim, policy, contract or payment
+     * that caused it without a second lookup.
+     */
+    private static void sourceLinkage(Map<String, Object> data, Notification notification) {
+        if (notification.sourceType() != null) {
+            data.put("sourceType", notification.sourceType());
+        }
+        if (notification.sourceId() != null) {
+            data.put("sourceId", notification.sourceId());
+        }
+        if (notification.sourceReference() != null) {
+            data.put("sourceReference", notification.sourceReference());
+        }
     }
 
     private static Map<String, Object> identity(Notification notification) {

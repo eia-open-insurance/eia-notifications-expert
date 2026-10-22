@@ -54,6 +54,12 @@ CREATE TABLE IF NOT EXISTS notification (
     )
 );
 
+-- Notification source record linkage, mirroring the idempotent PostgreSQL ALTER
+-- statements so an existing table also gains the columns on startup.
+ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_type VARCHAR(32);
+ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_id UUID;
+ALTER TABLE notification ADD COLUMN IF NOT EXISTS source_reference VARCHAR(64);
+
 -- H2-compatible copy of the PostgreSQL outbox table. JSON payloads are TEXT
 -- here; production DDL uses jsonb.
 CREATE TABLE IF NOT EXISTS outbox_event (

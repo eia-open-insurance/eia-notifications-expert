@@ -3,6 +3,9 @@ package com.eia.notifications.expert;
 import com.eia.platform.libs.outbox.OutboxRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -24,8 +27,10 @@ import static org.mockito.Mockito.when;
 class NotificationServiceTest {
 
     private static final UUID TENANT = UUID.fromString("11111111-1111-7111-8111-111111111111");
+    private static final UUID OTHER_TENANT = UUID.fromString("22222222-2222-7222-8222-222222222222");
     private static final UUID NOTIFICATION_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000001");
     private static final UUID PARTY_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000002");
+    private static final UUID SOURCE_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000003");
 
     @Mock
     private NotificationRepository notifications;
@@ -200,11 +205,134 @@ class NotificationServiceTest {
         assertThat(service.list(TENANT)).isEmpty();
     }
 
+    @Test
+    void createNormalizesAndPersistsSourceLinkage() {
+        CreateNotificationRequest request = request("EMAIL", "NEW_CLAIM_NOTICE", null, null,
+                " direct_claim ", SOURCE_ID, "  CLM-2026-0000001  ");
+        Notification persisted = notification("CREATED", null, null, null, null, 0,
+                "DIRECT_CLAIM", SOURCE_ID, "CLM-2026-0000001");
+        when(notifications.create(any(), any(), any())).thenReturn(persisted);
+
+        assertThat(service.create(request)).isEqualTo(persisted);
+
+        ArgumentCaptor<CreateNotificationRequest> captor =
+                ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notifications).create(captor.capture(), any(), any());
+        assertThat(captor.getValue().sourceType()).isEqualTo("DIRECT_CLAIM");
+        assertThat(captor.getValue().sourceId()).isEqualTo(SOURCE_ID);
+        assertThat(captor.getValue().sourceReference()).isEqualTo("CLM-2026-0000001");
+        verify(outbox).insert(any());
+    }
+
+    @Test
+    void createWithoutSourceLinkagePersistsNoSource() {
+        CreateNotificationRequest request = request("IN_APP", "MENTION", null, null);
+        when(notifications.create(any(), any(), any()))
+                .thenReturn(notification("CREATED", null, null, null, null, 0));
+
+        service.create(request);
+
+        ArgumentCaptor<CreateNotificationRequest> captor =
+                ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notifications).create(captor.capture(), any(), any());
+        assertThat(captor.getValue().sourceType()).isNull();
+        assertThat(captor.getValue().sourceId()).isNull();
+        assertThat(captor.getValue().sourceReference()).isNull();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"DIRECT_CLAIM", "ASSUMED_CLAIM", "POLICY", "CONTRACT", "PAYMENT", "OTHER"})
+    void createAcceptsEverySupportedSourceTypeWithoutReference(String sourceType) {
+        CreateNotificationRequest request = request("IN_APP", "MENTION", null, null,
+                sourceType, SOURCE_ID, null);
+        when(notifications.create(any(), any(), any()))
+                .thenReturn(notification("CREATED", null, null, null, null, 0,
+                        sourceType, SOURCE_ID, null));
+
+        service.create(request);
+
+        ArgumentCaptor<CreateNotificationRequest> captor =
+                ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(notifications).create(captor.capture(), any(), any());
+        assertThat(captor.getValue().sourceType()).isEqualTo(sourceType);
+        assertThat(captor.getValue().sourceId()).isEqualTo(SOURCE_ID);
+        assertThat(captor.getValue().sourceReference()).isNull();
+    }
+
+    @Test
+    void createRejectsSourceTypeWithoutSourceId() {
+        CreateNotificationRequest request = request("EMAIL", "NEW_CLAIM_NOTICE", null, null,
+                "POLICY", null, "POL-2026-0000001");
+
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.errorCode()).isEqualTo(ErrorCode.INVALID_SOURCE_LINKAGE);
+                    assertThat(ex.getMessage()).contains("sourceId is required");
+                });
+
+        verify(notifications, never()).create(any(), any(), any());
+    }
+
+    @Test
+    void createRejectsSourceIdWithoutSourceType() {
+        CreateNotificationRequest request = request("EMAIL", "NEW_CLAIM_NOTICE", null, null,
+                null, SOURCE_ID, null);
+
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOfSatisfying(ApiException.class, ex -> {
+                    assertThat(ex.errorCode()).isEqualTo(ErrorCode.INVALID_SOURCE_LINKAGE);
+                    assertThat(ex.getMessage()).contains("sourceType is required");
+                });
+
+        verify(notifications, never()).create(any(), any(), any());
+    }
+
+    @Test
+    void createRejectsUnknownSourceType() {
+        CreateNotificationRequest request = request("EMAIL", "NEW_CLAIM_NOTICE", null, null,
+                "BRIBE", SOURCE_ID, null);
+
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOfSatisfying(ApiException.class,
+                        ex -> assertThat(ex.errorCode()).isEqualTo(ErrorCode.INVALID_SOURCE_TYPE));
+
+        verify(notifications, never()).create(any(), any(), any());
+    }
+
+    @Test
+    void createRejectsOverlongSourceReference() {
+        CreateNotificationRequest request = request("EMAIL", "NEW_CLAIM_NOTICE", null, null,
+                "DIRECT_CLAIM", SOURCE_ID, "x".repeat(65));
+
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOfSatisfying(ApiException.class,
+                        ex -> assertThat(ex.errorCode()).isEqualTo(ErrorCode.INVALID_SOURCE_REFERENCE));
+
+        verify(notifications, never()).create(any(), any(), any());
+    }
+
+    @Test
+    void getScopesNotificationToTheRequestedTenant() {
+        when(notifications.findById(OTHER_TENANT, NOTIFICATION_ID)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.get(OTHER_TENANT, NOTIFICATION_ID))
+                .isInstanceOfSatisfying(ApiException.class,
+                        ex -> assertThat(ex.errorCode()).isEqualTo(ErrorCode.NOT_FOUND));
+
+        verify(notifications, never()).findById(TENANT, NOTIFICATION_ID);
+    }
+
     private CreateNotificationRequest request(String channel, String type, String templateCode,
                                                Integer templateVersion) {
+        return request(channel, type, templateCode, templateVersion, null, null, null);
+    }
+
+    private CreateNotificationRequest request(String channel, String type, String templateCode,
+                                               Integer templateVersion, String sourceType, UUID sourceId,
+                                               String sourceReference) {
         return new CreateNotificationRequest(TENANT, type, channel, PARTY_ID,
                 "Claim requires attention", "Claim CLM-2026-000000001 requires attention.",
-                templateCode, templateVersion, null);
+                templateCode, templateVersion, null, sourceType, sourceId, sourceReference);
     }
 
     private NotificationTemplate template(String code, int version, String status, UUID approvedBy) {
@@ -214,9 +342,17 @@ class NotificationServiceTest {
 
     private Notification notification(String status, String templateCode, Integer templateVersion,
                                       Instant scheduledAt, Instant sentAt, int version) {
+        return notification(status, templateCode, templateVersion, scheduledAt, sentAt, version,
+                null, null, null);
+    }
+
+    private Notification notification(String status, String templateCode, Integer templateVersion,
+                                      Instant scheduledAt, Instant sentAt, int version,
+                                      String sourceType, UUID sourceId, String sourceReference) {
         return new Notification(NOTIFICATION_ID, TENANT, "NTF-2026-000000001", "NEW_CLAIM_NOTICE",
                 "EMAIL", status, PARTY_ID, "Claim requires attention",
                 "Claim CLM-2026-000000001 requires attention.", templateCode, templateVersion,
-                scheduledAt, sentAt, version, Instant.now(), Instant.now());
+                scheduledAt, sentAt, version, Instant.now(), Instant.now(),
+                sourceType, sourceId, sourceReference);
     }
 }

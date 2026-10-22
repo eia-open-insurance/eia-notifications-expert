@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
@@ -29,6 +30,7 @@ class NotificationControllerTest {
     private static final UUID TENANT = UUID.fromString("11111111-1111-7111-8111-111111111111");
     private static final UUID NOTIFICATION_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000001");
     private static final UUID PARTY_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000002");
+    private static final UUID SOURCE_ID = UUID.fromString("0192f3a4-0000-7000-8000-000000000003");
 
     @Autowired
     private MockMvc mvc;
@@ -65,7 +67,7 @@ class NotificationControllerTest {
     void createReturns201AndNotification() throws Exception {
         CreateNotificationRequest request = new CreateNotificationRequest(TENANT, "NEW_CLAIM_NOTICE",
                 "EMAIL", PARTY_ID, "Claim requires attention", "Claim CLM-2026-000000001 requires attention.",
-                "CLAIM_NOTICE_STANDARD", 1, null);
+                "CLAIM_NOTICE_STANDARD", 1, null, null, null, null);
         when(service.create(any(CreateNotificationRequest.class)))
                 .thenReturn(notification("CREATED", "CLAIM_NOTICE_STANDARD", 1));
 
@@ -157,6 +159,113 @@ class NotificationControllerTest {
     }
 
     @Test
+    void createAcceptsAndReturnsSourceLinkage() throws Exception {
+        when(service.create(any(CreateNotificationRequest.class)))
+                .thenReturn(notification("CREATED", null, null,
+                        "DIRECT_CLAIM", SOURCE_ID, "CLM-2026-0000001"));
+
+        mvc.perform(post("/internal/v1/notifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "tenantId": "11111111-1111-7111-8111-111111111111",
+                                  "notificationType": "NEW_CLAIM_NOTICE",
+                                  "channel": "EMAIL",
+                                  "recipientPartyId": "0192f3a4-0000-7000-8000-000000000002",
+                                  "subject": "Claim requires attention",
+                                  "body": "Claim CLM-2026-000000001 requires attention.",
+                                  "sourceType": "DIRECT_CLAIM",
+                                  "sourceId": "0192f3a4-0000-7000-8000-000000000003",
+                                  "sourceReference": "CLM-2026-0000001"
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sourceType").value("DIRECT_CLAIM"))
+                .andExpect(jsonPath("$.sourceId").value(SOURCE_ID.toString()))
+                .andExpect(jsonPath("$.sourceReference").value("CLM-2026-0000001"));
+
+        ArgumentCaptor<CreateNotificationRequest> request = ArgumentCaptor.forClass(CreateNotificationRequest.class);
+        verify(service).create(request.capture());
+        assertThat(request.getValue().sourceType()).isEqualTo("DIRECT_CLAIM");
+        assertThat(request.getValue().sourceId()).isEqualTo(SOURCE_ID);
+        assertThat(request.getValue().sourceReference()).isEqualTo("CLM-2026-0000001");
+    }
+
+    @Test
+    void createWithoutSourceLinkageReturnsNullSourceFields() throws Exception {
+        when(service.create(any(CreateNotificationRequest.class)))
+                .thenReturn(notification("CREATED", null, null));
+
+        mvc.perform(post("/internal/v1/notifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "tenantId": "11111111-1111-7111-8111-111111111111",
+                                  "notificationType": "MENTION",
+                                  "channel": "IN_APP",
+                                  "recipientPartyId": "0192f3a4-0000-7000-8000-000000000002",
+                                  "subject": "You were mentioned",
+                                  "body": "You were mentioned in a claim note."
+                                }
+                                """))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.sourceType").value(nullValue()))
+                .andExpect(jsonPath("$.sourceId").value(nullValue()))
+                .andExpect(jsonPath("$.sourceReference").value(nullValue()));
+    }
+
+    @Test
+    void createRejectsUnknownSourceTypeWithStructured400() throws Exception {
+        when(service.create(any(CreateNotificationRequest.class)))
+                .thenThrow(new ApiException(ErrorCode.INVALID_SOURCE_TYPE,
+                        "Source type 'BRIBE' is not allowed."));
+
+        mvc.perform(post("/internal/v1/notifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "tenantId": "11111111-1111-7111-8111-111111111111",
+                                  "notificationType": "NEW_CLAIM_NOTICE",
+                                  "channel": "EMAIL",
+                                  "recipientPartyId": "0192f3a4-0000-7000-8000-000000000002",
+                                  "subject": "Claim requires attention",
+                                  "body": "Claim CLM-2026-000000001 requires attention.",
+                                  "sourceType": "BRIBE",
+                                  "sourceId": "0192f3a4-0000-7000-8000-000000000003"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("EIA-NTF-9409"))
+                .andExpect(jsonPath("$.category").value("VALIDATION"));
+    }
+
+    @Test
+    void createRejectsHalfSourcePairWithStructured400() throws Exception {
+        when(service.create(any(CreateNotificationRequest.class)))
+                .thenThrow(new ApiException(ErrorCode.INVALID_SOURCE_LINKAGE,
+                        "sourceId is required when sourceType is supplied."));
+
+        mvc.perform(post("/internal/v1/notifications")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "tenantId": "11111111-1111-7111-8111-111111111111",
+                                  "notificationType": "NEW_CLAIM_NOTICE",
+                                  "channel": "EMAIL",
+                                  "recipientPartyId": "0192f3a4-0000-7000-8000-000000000002",
+                                  "subject": "Claim requires attention",
+                                  "body": "Claim CLM-2026-000000001 requires attention.",
+                                  "sourceType": "POLICY"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.code").value("EIA-NTF-9410"))
+                .andExpect(jsonPath("$.category").value("VALIDATION"));
+    }
+
+    @Test
     void sendRejectsUnapprovedTemplateWithStructured400() throws Exception {
         when(service.send(eq(TENANT), eq(NOTIFICATION_ID)))
                 .thenThrow(new ApiException(ErrorCode.TEMPLATE_NOT_APPROVED,
@@ -179,9 +288,15 @@ class NotificationControllerTest {
     }
 
     private Notification notification(String status, String templateCode, Integer templateVersion) {
+        return notification(status, templateCode, templateVersion, null, null, null);
+    }
+
+    private Notification notification(String status, String templateCode, Integer templateVersion,
+                                      String sourceType, UUID sourceId, String sourceReference) {
         return new Notification(NOTIFICATION_ID, TENANT, "NTF-2026-000000001", "NEW_CLAIM_NOTICE",
                 "EMAIL", status, PARTY_ID, "Claim requires attention",
                 "Claim CLM-2026-000000001 requires attention.", templateCode, templateVersion,
-                null, null, 0, Instant.now(), Instant.now());
+                null, null, 0, Instant.now(), Instant.now(),
+                sourceType, sourceId, sourceReference);
     }
 }

@@ -26,6 +26,9 @@ public enum ErrorCode {
     MALFORMED_REQUEST("EIA-NTF-9406", HttpStatus.BAD_REQUEST, "Malformed request", "VALIDATION", false),
     DATA_INTEGRITY_VIOLATION("EIA-NTF-9407", HttpStatus.BAD_REQUEST, "Data integrity violation", "VALIDATION", false),
     INVALID_TEMPLATE_STATUS("EIA-NTF-9408", HttpStatus.BAD_REQUEST, "Invalid template status", "VALIDATION", false),
+    INVALID_SOURCE_TYPE("EIA-NTF-9409", HttpStatus.BAD_REQUEST, "Invalid source type", "VALIDATION", false),
+    INVALID_SOURCE_LINKAGE("EIA-NTF-9410", HttpStatus.BAD_REQUEST, "Invalid source linkage", "VALIDATION", false),
+    INVALID_SOURCE_REFERENCE("EIA-NTF-9411", HttpStatus.BAD_REQUEST, "Invalid source reference", "VALIDATION", false),
     TENANT_REQUIRED("EIA-NTF-9501", HttpStatus.BAD_REQUEST, "Tenant is required", "VALIDATION", false),
     INVALID_ARGUMENT("EIA-NTF-9502", HttpStatus.BAD_REQUEST, "Invalid argument", "VALIDATION", false),
     INTERNAL_ERROR("EIA-NTF-9999", HttpStatus.INTERNAL_SERVER_ERROR, "Internal error", "INTERNAL", false);

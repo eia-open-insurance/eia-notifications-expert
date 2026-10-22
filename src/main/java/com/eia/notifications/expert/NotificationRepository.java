@@ -45,14 +45,18 @@ public class NotificationRepository {
             instant(rs, "sent_at"),
             rs.getInt("version"),
             rs.getTimestamp("created_at").toInstant(),
-            rs.getTimestamp("updated_at").toInstant()
+            rs.getTimestamp("updated_at").toInstant(),
+            rs.getString("source_type"),
+            rs.getObject("source_id", UUID.class),
+            rs.getString("source_reference")
     );
 
     public List<Notification> findAll(UUID tenantId) {
         return jdbc.query("""
                 SELECT id, tenant_id, notification_number, notification_type, channel, status,
                        recipient_party_id, subject, body, template_code, template_version,
-                       scheduled_at, sent_at, version, created_at, updated_at
+                       scheduled_at, sent_at, version, created_at, updated_at,
+                       source_type, source_id, source_reference
                   FROM notification
                  WHERE tenant_id = ?
                  ORDER BY created_at DESC, id
@@ -63,7 +67,8 @@ public class NotificationRepository {
         return jdbc.query("""
                 SELECT id, tenant_id, notification_number, notification_type, channel, status,
                        recipient_party_id, subject, body, template_code, template_version,
-                       scheduled_at, sent_at, version, created_at, updated_at
+                       scheduled_at, sent_at, version, created_at, updated_at,
+                       source_type, source_id, source_reference
                   FROM notification
                  WHERE tenant_id = ? AND id = ?
                 """, MAPPER, tenantId, id).stream().findFirst();
@@ -80,12 +85,14 @@ public class NotificationRepository {
                 INSERT INTO notification (
                     id, tenant_id, notification_number, notification_type, channel, status,
                     recipient_party_id, subject, body, template_code, template_version,
-                    scheduled_at, sent_at, version, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, 'CREATED', ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?)
+                    scheduled_at, sent_at, version, created_at, updated_at,
+                    source_type, source_id, source_reference
+                ) VALUES (?, ?, ?, ?, ?, 'CREATED', ?, ?, ?, ?, ?, ?, NULL, 0, ?, ?, ?, ?, ?)
                 """,
                 id, request.tenantId(), notificationNumber, request.notificationType(), request.channel(),
                 request.recipientPartyId(), request.subject(), request.body(), templateCode, templateVersion,
-                timestamp(request.scheduledAt()), now, now);
+                timestamp(request.scheduledAt()), now, now,
+                request.sourceType(), request.sourceId(), request.sourceReference());
         return findById(request.tenantId(), id).orElseThrow();
     }
 

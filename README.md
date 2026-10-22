@@ -44,6 +44,7 @@ Writes data; does not decide business outcomes.
   - `POST /internal/v1/notifications`
   - `POST /internal/v1/notifications/{id}/send?tenantId={uuid}`
 - Enforced invariants: SPEC 11.8.5 channel/status sets, `sent_at >= scheduled_at`, and issuance only with an approved `ACTIVE` template (NTF-01, NTF-14). Errors are RFC 9457 `application/problem+json` with stable `EIA-NTF-*` codes.
+- Optional notification source linkage: `sourceType` (`DIRECT_CLAIM`, `ASSUMED_CLAIM`, `POLICY`, `CONTRACT`, `PAYMENT`, `OTHER`) and `sourceId` are supplied as a pair, with optional `sourceReference`; the fields are returned on reads and included in `notifications.notification.created`/`.sent` payloads when present.
 - Notification template management (tenant-scoped via `X-EIA-Tenant` or `?tenantId=`):
   - `GET /api/v1/notifications/templates?status=&code=` (newest first)
   - `POST /api/v1/notifications/templates` (creates `DRAFT`; duplicate tenant/code/version/locale returns `409 EIA-NTF-9205`)

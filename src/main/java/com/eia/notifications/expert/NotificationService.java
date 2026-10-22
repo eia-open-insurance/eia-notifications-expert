@@ -47,16 +47,49 @@ public class NotificationService {
     public Notification create(CreateNotificationRequest request) {
         NotificationType.from(request.notificationType());
         NotificationChannel.from(request.channel());
+        CreateNotificationRequest normalized = normalizeSourceLinkage(request);
 
-        String templateCode = blankToNull(request.templateCode());
-        Integer templateVersion = normalizeTemplateVersion(templateCode, request.templateVersion());
+        String templateCode = blankToNull(normalized.templateCode());
+        Integer templateVersion = normalizeTemplateVersion(templateCode, normalized.templateVersion());
         if (templateCode != null) {
-            requireApprovedTemplate(request.tenantId(), templateCode, templateVersion, request.channel());
+            requireApprovedTemplate(normalized.tenantId(), templateCode, templateVersion, normalized.channel());
         }
 
-        Notification notification = notifications.create(request, templateCode, templateVersion);
+        Notification notification = notifications.create(normalized, templateCode, templateVersion);
         outbox.insert(OutboxEvent.fromEnvelope(NotificationEvents.created(notification, Instant.now())));
         return notification;
+    }
+
+    /**
+     * Source linkage is all-or-nothing for the classified pair: sourceType and
+     * sourceId are supplied together or not at all. sourceReference is optional
+     * metadata and never substitutes for sourceId.
+     */
+    private CreateNotificationRequest normalizeSourceLinkage(CreateNotificationRequest request) {
+        String sourceType = NotificationSourceType.normalize(request.sourceType());
+        UUID sourceId = request.sourceId();
+        if (sourceType == null && sourceId != null) {
+            throw new ApiException(ErrorCode.INVALID_SOURCE_LINKAGE,
+                    "sourceType is required when sourceId is supplied.");
+        }
+        if (sourceType != null && sourceId == null) {
+            throw new ApiException(ErrorCode.INVALID_SOURCE_LINKAGE,
+                    "sourceId is required when sourceType is supplied.");
+        }
+
+        String sourceReference = blankToNull(request.sourceReference());
+        if (sourceReference != null && sourceReference.length() > 64) {
+            throw new ApiException(ErrorCode.INVALID_SOURCE_REFERENCE,
+                    "sourceReference must be at most 64 characters.");
+        }
+
+        if (sourceType == null && sourceId == null && sourceReference == null) {
+            return request;
+        }
+        return new CreateNotificationRequest(
+                request.tenantId(), request.notificationType(), request.channel(), request.recipientPartyId(),
+                request.subject(), request.body(), request.templateCode(), request.templateVersion(),
+                request.scheduledAt(), sourceType, sourceId, sourceReference);
     }
 
     /**
